@@ -1,0 +1,15 @@
+/* =============================================================================
+   PositionMatrix — Custom Application Styles
+   Bootstrap 5 is loaded via CDN. Add overrides and custom styles here.
+   ============================================================================= */
+
+/* Ensure the body fills the viewport for sticky footer behavior. */
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+main {
+    flex: 1;
+}

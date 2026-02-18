@@ -1,0 +1,35 @@
+# =============================================================================
+# IT Equipment & Software Tracking Application
+# Production Dependencies
+# =============================================================================
+# Install: pip install -r requirements.txt
+# Note: Requires ODBC Driver 18 for SQL Server installed on the host OS.
+#       Download from: https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server
+# =============================================================================
+
+# -- Web Framework --------------------------------------------------------
+Flask>=3.1,<4.0
+Flask-SQLAlchemy>=3.1,<4.0
+Flask-Migrate>=4.0,<5.0
+Flask-Login>=0.6,<1.0
+Flask-WTF>=1.2,<2.0
+
+# -- Database -------------------------------------------------------------
+SQLAlchemy>=2.0,<3.0
+pyodbc>=5.1,<6.0
+alembic>=1.13,<2.0
+
+# -- Authentication -------------------------------------------------------
+msal>=1.31,<2.0
+
+# -- WSGI Server (production) --------------------------------------------
+waitress>=3.0,<4.0
+
+# -- Export ---------------------------------------------------------------
+openpyxl>=3.1,<4.0
+
+# -- Logging --------------------------------------------------------------
+python-json-logger>=2.0,<3.0
+
+# -- Utilities ------------------------------------------------------------
+python-dotenv>=1.0,<2.0
