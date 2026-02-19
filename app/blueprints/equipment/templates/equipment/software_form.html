@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit' if mode == 'edit' else 'New' }} Software — PositionMatrix{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('equipment.software_list') }}">Software Catalog</a></li>
+        <li class="breadcrumb-item active">{{ 'Edit' if mode == 'edit' else 'New' }} Software</li>
+    </ol>
+</nav>
+
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-{{ 'pencil' if mode == 'edit' else 'plus-lg' }} me-2"></i>
+                    {{ 'Edit' if mode == 'edit' else 'Add' }} Software Product
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    {# Name field. #}
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="name" name="name"
+                               value="{{ form_data.get('name', '') or (software.name if software else '') }}"
+                               placeholder="e.g., Microsoft 365 E3" required>
+                    </div>
+
+                    {# Software type (category). #}
+                    <div class="mb-3">
+                        <label for="software_type_id" class="form-label">Category <span class="text-danger">*</span></label>
+                        <select class="form-select" id="software_type_id" name="software_type_id" required>
+                            <option value="">— Select —</option>
+                            {% for st in software_types %}
+                            <option value="{{ st.id }}"
+                                {{ 'selected' if (form_data.get('software_type_id')|int == st.id) or (software and software.software_type_id == st.id) }}>
+                                {{ st.type_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    {# License model toggle. #}
+                    <div class="mb-3">
+                        <label class="form-label">License Model <span class="text-danger">*</span></label>
+                        <div>
+                            {% set current_model = form_data.get('license_model', '') or (software.license_model if software else 'per_user') %}
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="license_model"
+                                       id="model_per_user" value="per_user"
+                                       {{ 'checked' if current_model == 'per_user' }}
+                                       onchange="toggleCostFields()">
+                                <label class="form-check-label" for="model_per_user">Per-User</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="license_model"
+                                       id="model_tenant" value="tenant"
+                                       {{ 'checked' if current_model == 'tenant' }}
+                                       onchange="toggleCostFields()">
+                                <label class="form-check-label" for="model_tenant">Tenant</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    {# Per-user cost field (shown when per_user selected). #}
+                    <div class="mb-3" id="perUserCostGroup">
+                        <label for="cost_per_license" class="form-label">Cost per License</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="cost_per_license" name="cost_per_license"
+                                   step="0.01" min="0"
+                                   value="{{ form_data.get('cost_per_license', '') or (software.cost_per_license if software and software.cost_per_license else '') }}">
+                        </div>
+                        <div class="form-text">Annual cost per user license.</div>
+                    </div>
+
+                    {# Tenant cost field (shown when tenant selected). #}
+                    <div class="mb-3" id="tenantCostGroup">
+                        <label for="total_cost" class="form-label">Total Annual Cost</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="total_cost" name="total_cost"
+                                   step="0.01" min="0"
+                                   value="{{ form_data.get('total_cost', '') or (software.total_cost if software and software.total_cost else '') }}">
+                        </div>
+                        <div class="form-text">Total cost distributed across covered positions.</div>
+                    </div>
+
+                    {# License tier (optional). #}
+                    <div class="mb-3">
+                        <label for="license_tier" class="form-label">License Tier</label>
+                        <input type="text" class="form-control" id="license_tier" name="license_tier"
+                               value="{{ form_data.get('license_tier', '') or (software.license_tier if software else '') }}"
+                               placeholder="e.g., E1, E3, E5, Basic, Pro">
+                    </div>
+
+                    {# Software family (optional). #}
+                    <div class="mb-3">
+                        <label for="software_family_id" class="form-label">Software Family</label>
+                        <select class="form-select" id="software_family_id" name="software_family_id">
+                            <option value="">— None —</option>
+                            {% for fam in software_families %}
+                            <option value="{{ fam.id }}"
+                                {{ 'selected' if (form_data.get('software_family_id')|int == fam.id) or (software and software.software_family_id == fam.id) }}>
+                                {{ fam.family_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    {# Description (optional). #}
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"
+                                  placeholder="Optional description">{{ form_data.get('description', '') or (software.description if software else '') }}</textarea>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('equipment.software_list') }}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-1"></i>{{ 'Save Changes' if mode == 'edit' else 'Create' }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    /** Toggle visibility of per-user vs. tenant cost input groups. */
+    function toggleCostFields() {
+        const isPerUser = document.getElementById('model_per_user').checked;
+        document.getElementById('perUserCostGroup').style.display = isPerUser ? 'block' : 'none';
+        document.getElementById('tenantCostGroup').style.display = isPerUser ? 'none' : 'block';
+    }
+    // Run on page load to set initial state.
+    document.addEventListener('DOMContentLoaded', toggleCostFields);
+</script>
+{% endblock %}

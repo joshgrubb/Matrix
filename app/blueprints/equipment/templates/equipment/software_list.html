@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Software Catalog — PositionMatrix{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-window-stack me-2"></i>Software Catalog</h2>
+    <div>
+        {% if show_inactive %}
+        <a href="{{ url_for('equipment.software_list') }}" class="btn btn-outline-secondary btn-sm me-2">
+            <i class="bi bi-eye-slash me-1"></i>Hide Inactive
+        </a>
+        {% else %}
+        <a href="{{ url_for('equipment.software_list', show_inactive='1') }}" class="btn btn-outline-secondary btn-sm me-2">
+            <i class="bi bi-eye me-1"></i>Show Inactive
+        </a>
+        {% endif %}
+        <a href="{{ url_for('equipment.software_create') }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg me-1"></i>Add Software
+        </a>
+    </div>
+</div>
+
+{# Software type filter. #}
+<div class="mb-3">
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-auto">
+            <label for="software_type_id" class="form-label">Filter by Type</label>
+            <select class="form-select form-select-sm" id="software_type_id" name="software_type_id"
+                    onchange="this.form.submit()">
+                <option value="">All Types</option>
+                {% for st in software_types %}
+                <option value="{{ st.id }}" {{ 'selected' if selected_type_id == st.id }}>{{ st.type_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% if show_inactive %}
+        <input type="hidden" name="show_inactive" value="1">
+        {% endif %}
+    </form>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped table-hover align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>Name</th>
+                <th>Category</th>
+                <th class="text-center">License Model</th>
+                <th>Tier</th>
+                <th class="text-end">Cost</th>
+                <th class="text-center">Status</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sw in software_products %}
+            <tr class="{{ 'table-secondary text-muted' if not sw.is_active }}">
+                <td>{{ sw.name }}</td>
+                <td>{{ sw.software_type.type_name if sw.software_type else '—' }}</td>
+                <td class="text-center">
+                    {% if sw.license_model == 'per_user' %}
+                    <span class="badge bg-info">Per-User</span>
+                    {% else %}
+                    <span class="badge bg-warning text-dark">Tenant</span>
+                    {% endif %}
+                </td>
+                <td>{{ sw.license_tier or '—' }}</td>
+                <td class="text-end">
+                    {% if sw.license_model == 'per_user' and sw.cost_per_license %}
+                    ${{ "%.2f"|format(sw.cost_per_license) }}/user
+                    {% elif sw.total_cost %}
+                    ${{ "%.2f"|format(sw.total_cost) }} total
+                    {% else %}
+                    —
+                    {% endif %}
+                </td>
+                <td class="text-center">
+                    {% if sw.is_active %}
+                    <span class="badge bg-success">Active</span>
+                    {% else %}
+                    <span class="badge bg-secondary">Inactive</span>
+                    {% endif %}
+                </td>
+                <td class="text-end">
+                    {% if sw.is_active %}
+                    <a href="{{ url_for('equipment.software_edit', software_id=sw.id) }}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                    <form method="post" action="{{ url_for('equipment.software_deactivate', software_id=sw.id) }}" class="d-inline"
+                          onsubmit="return confirm('Deactivate this software product?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7" class="text-center text-muted py-4">
+                    No software products found.
+                    <a href="{{ url_for('equipment.software_create') }}">Add one now.</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
