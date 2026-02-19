@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Cost Summary — Reports{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Department Cost Summary</h1>
+    <div>
+        <a href="{{ url_for('reports.export_department_costs', fmt='csv') }}"
+           class="btn btn-outline-secondary btn-sm me-1">
+            Export CSV
+        </a>
+        <a href="{{ url_for('reports.export_department_costs', fmt='xlsx') }}"
+           class="btn btn-outline-success btn-sm">
+            Export Excel
+        </a>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        {% if department_summaries %}
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Department</th>
+                    <th class="text-end">Positions</th>
+                    <th class="text-end">Authorized</th>
+                    <th class="text-end">Hardware Cost</th>
+                    <th class="text-end">Software Cost</th>
+                    <th class="text-end">Total Cost</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for dept in department_summaries %}
+                <tr>
+                    <td>{{ dept.department_name }}</td>
+                    <td class="text-end">{{ dept.position_count }}</td>
+                    <td class="text-end">{{ dept.authorized_count }}</td>
+                    <td class="text-end">${{ "%.2f"|format(dept.hardware_cost) }}</td>
+                    <td class="text-end">${{ "%.2f"|format(dept.software_cost) }}</td>
+                    <td class="text-end fw-bold">${{ "%.2f"|format(dept.total_cost) }}</td>
+                    <td>
+                        <a href="{{ url_for('reports.equipment_report', department_id=dept.department_id) }}"
+                           class="btn btn-sm btn-outline-primary">
+                            Detail
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% if org_summary %}
+            <tfoot>
+                <tr class="table-dark">
+                    <td class="fw-bold">Organization Total</td>
+                    <td class="text-end">{{ org_summary.position_count }}</td>
+                    <td class="text-end">{{ org_summary.authorized_count }}</td>
+                    <td class="text-end">${{ "%.2f"|format(org_summary.hardware_cost) }}</td>
+                    <td class="text-end">${{ "%.2f"|format(org_summary.software_cost) }}</td>
+                    <td class="text-end fw-bold">${{ "%.2f"|format(org_summary.total_cost) }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+        {% else %}
+        <div class="alert alert-info">
+            No department cost data available. Configure position requirements to see cost summaries.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
