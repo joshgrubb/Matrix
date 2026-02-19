@@ -3,54 +3,84 @@
 {% block title %}Dashboard — PositionMatrix{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h1 class="mb-3">
-            <i class="bi bi-speedometer2 me-2"></i>Dashboard
-        </h1>
-        <p class="text-muted">
-            IT Equipment &amp; Software Tracking — Position Requirements and Cost Reporting
-        </p>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Dashboard</h1>
+</div>
+
+<div class="row g-4 mb-4">
+    <!-- Quick stats cards -->
+    <div class="col-md-4">
+        <div class="card text-bg-primary">
+            <div class="card-body">
+                <h5 class="card-title">Organization</h5>
+                <p class="card-text">View departments, divisions, and positions synced from NeoGov.</p>
+                <a href="{{ url_for('organization.departments') }}" class="btn btn-light btn-sm">
+                    Browse Organization
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-bg-success">
+            <div class="card-body">
+                <h5 class="card-title">Requirements</h5>
+                <p class="card-text">Configure hardware and software requirements for positions.</p>
+                <a href="{{ url_for('requirements.select_position') }}" class="btn btn-light btn-sm">
+                    Manage Requirements
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-bg-info">
+            <div class="card-body">
+                <h5 class="card-title">Reports</h5>
+                <p class="card-text">View cost summaries and export data by department.</p>
+                <a href="{{ url_for('reports.cost_summary') }}" class="btn btn-light btn-sm">
+                    View Reports
+                </a>
+            </div>
+        </div>
     </div>
 </div>
 
-{# Placeholder cards — replaced with real data in Sprint 5 (cost summaries). #}
-<div class="row g-4 mt-2">
-    <div class="col-md-4">
-        <div class="card border-primary h-100">
+<div class="row g-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Equipment Catalog</h5>
+            </div>
             <div class="card-body">
-                <h5 class="card-title">
-                    <i class="bi bi-diagram-3 me-2 text-primary"></i>Organization
-                </h5>
-                <p class="card-text">
-                    View departments, divisions, and positions synced from NeoGov.
-                </p>
+                <p>Manage the hardware types and software products available for assignment.</p>
+                <a href="{{ url_for('equipment.hardware_list') }}" class="btn btn-outline-secondary btn-sm me-2">
+                    Hardware Types
+                </a>
+                <a href="{{ url_for('equipment.software_list') }}" class="btn btn-outline-secondary btn-sm">
+                    Software Products
+                </a>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card border-success h-100">
+    {% if current_user.has_role('admin') %}
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Administration</h5>
+            </div>
             <div class="card-body">
-                <h5 class="card-title">
-                    <i class="bi bi-pc-display me-2 text-success"></i>Equipment Catalog
-                </h5>
-                <p class="card-text">
-                    Manage hardware types and software products available for positions.
-                </p>
+                <p>Manage users, view audit logs, and trigger HR syncs.</p>
+                <a href="{{ url_for('admin.manage_users') }}" class="btn btn-outline-secondary btn-sm me-2">
+                    Users
+                </a>
+                <a href="{{ url_for('admin.audit_logs') }}" class="btn btn-outline-secondary btn-sm me-2">
+                    Audit Logs
+                </a>
+                <a href="{{ url_for('admin.hr_sync') }}" class="btn btn-outline-secondary btn-sm">
+                    HR Sync
+                </a>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card border-warning h-100">
-            <div class="card-body">
-                <h5 class="card-title">
-                    <i class="bi bi-currency-dollar me-2 text-warning"></i>Cost Reports
-                </h5>
-                <p class="card-text">
-                    View budgetary impact per position, division, and department.
-                </p>
-            </div>
-        </div>
-    </div>
+    {% endif %}
 </div>
 {% endblock %}
