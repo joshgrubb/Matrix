@@ -1,20 +1,23 @@
 """
-Routes for the main blueprint — dashboard and landing page.
+Routes for the main blueprint — dashboard and health check.
 """
 
 from flask import render_template
+from flask_login import current_user, login_required
+from sqlalchemy import text
 
 from app.blueprints.main import bp
+from app.extensions import db
 
 
 @bp.route("/")
+@login_required
 def dashboard():
     """
-    Render the application dashboard.
+    Main dashboard displaying summary statistics.
 
-    The dashboard will show cost summaries by department/division once
-    the cost service is built in Sprint 5. For now it serves as a
-    landing page confirming the application is running.
+    Shows department count, position count, and a quick cost overview.
+    Redirected to after login.
     """
     return render_template("main/dashboard.html")
 
@@ -22,9 +25,12 @@ def dashboard():
 @bp.route("/health")
 def health_check():
     """
-    Simple health check endpoint for monitoring.
+    Health check endpoint for monitoring and load balancers.
 
-    Returns a plain-text 'OK' response. Useful for IIS Application
-    Request Routing health probes and uptime monitoring.
+    Returns 200 if the app is running and can reach the database.
     """
-    return "OK", 200
+    try:
+        db.session.execute(text("SELECT 1"))
+        return {"status": "healthy", "database": "connected"}, 200
+    except Exception as exc:  # pylint: disable=broad-except
+        return {"status": "unhealthy", "database": str(exc)}, 503
