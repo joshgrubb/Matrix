@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 # -- Department queries ----------------------------------------------------
 
+
 def get_departments(user: User, include_inactive: bool = False):
     """
     Return departments visible to the given user.
@@ -34,7 +35,7 @@ def get_departments(user: User, include_inactive: bool = False):
     query = Department.query.order_by(Department.department_name)
 
     if not include_inactive:
-        query = query.filter(Department.is_active.is_(True))
+        query = query.filter(Department.is_active == True)
 
     # Scope filtering: org-wide users see everything.
     if not user.has_org_scope():
@@ -62,6 +63,7 @@ def get_department_by_id(department_id: int) -> Department | None:
 
 # -- Division queries ------------------------------------------------------
 
+
 def get_divisions(
     user: User,
     department_id: int | None = None,
@@ -81,7 +83,7 @@ def get_divisions(
     query = Division.query.order_by(Division.division_name)
 
     if not include_inactive:
-        query = query.filter(Division.is_active.is_(True))
+        query = query.filter(Division.is_active == True)
 
     # Filter to a specific department if requested.
     if department_id is not None:
@@ -116,8 +118,7 @@ def get_divisions_for_department(department_id: int):
     authorized to view the parent department.
     """
     return (
-        Division.query
-        .filter_by(department_id=department_id, is_active=True)
+        Division.query.filter_by(department_id=department_id, is_active=True)
         .order_by(Division.division_name)
         .all()
     )
@@ -129,6 +130,7 @@ def get_division_by_id(division_id: int) -> Division | None:
 
 
 # -- Position queries ------------------------------------------------------
+
 
 def get_positions(
     user: User,
@@ -152,16 +154,14 @@ def get_positions(
     query = Position.query.order_by(Position.position_title)
 
     if not include_inactive:
-        query = query.filter(Position.is_active.is_(True))
+        query = query.filter(Position.is_active == True)
 
     # Filter by division or department.
     if division_id is not None:
         query = query.filter(Position.division_id == division_id)
     elif department_id is not None:
         # Join to divisions to filter by department.
-        query = query.join(Division).filter(
-            Division.department_id == department_id
-        )
+        query = query.join(Division).filter(Division.department_id == department_id)
 
     # Scope filtering.
     if not user.has_org_scope():
@@ -169,9 +169,7 @@ def get_positions(
         div_ids = user.scoped_division_ids()
 
         if dept_ids or div_ids:
-            query = query.join(
-                Division, Position.division_id == Division.id
-            )
+            query = query.join(Division, Position.division_id == Division.id)
             conditions = []
             if dept_ids:
                 conditions.append(Division.department_id.in_(dept_ids))
@@ -190,8 +188,7 @@ def get_positions_for_division(division_id: int):
     authorized to view the parent division.
     """
     return (
-        Position.query
-        .filter_by(division_id=division_id, is_active=True)
+        Position.query.filter_by(division_id=division_id, is_active=True)
         .order_by(Position.position_title)
         .all()
     )
@@ -203,6 +200,7 @@ def get_position_by_id(position_id: int) -> Position | None:
 
 
 # -- Aggregate helpers -----------------------------------------------------
+
 
 def get_total_authorized_count(
     department_id: int | None = None,
@@ -220,14 +218,12 @@ def get_total_authorized_count(
     """
     query = db.session.query(
         func.coalesce(func.sum(Position.authorized_count), 0)
-    ).filter(Position.is_active.is_(True))
+    ).filter(Position.is_active == True)
 
     if division_id is not None:
         query = query.filter(Position.division_id == division_id)
     elif department_id is not None:
-        query = query.join(Division).filter(
-            Division.department_id == department_id
-        )
+        query = query.join(Division).filter(Division.department_id == department_id)
 
     return query.scalar()
 
@@ -249,20 +245,19 @@ def get_filled_count(
     query = (
         db.session.query(func.count(Employee.id))
         .join(Position)
-        .filter(Employee.is_active.is_(True), Position.is_active.is_(True))
+        .filter(Employee.is_active == True, Position.is_active == True)
     )
 
     if division_id is not None:
         query = query.filter(Position.division_id == division_id)
     elif department_id is not None:
-        query = query.join(Division).filter(
-            Division.department_id == department_id
-        )
+        query = query.join(Division).filter(Division.department_id == department_id)
 
     return query.scalar()
 
 
 # -- Scope authorization helpers -------------------------------------------
+
 
 def user_can_access_department(user: User, department_id: int) -> bool:
     """Check whether a user's scope allows access to a department."""
@@ -273,12 +268,9 @@ def user_can_access_department(user: User, department_id: int) -> bool:
     # Check if user has division-level scope in this department.
     div_ids = user.scoped_division_ids()
     if div_ids:
-        match = (
-            Division.query
-            .filter(Division.id.in_(div_ids),
-                    Division.department_id == department_id)
-            .first()
-        )
+        match = Division.query.filter(
+            Division.id.in_(div_ids), Division.department_id == department_id
+        ).first()
         return match is not None
     return False
 

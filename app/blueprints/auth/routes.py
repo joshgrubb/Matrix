@@ -127,10 +127,9 @@ def dev_login():
 
     # Find the first active admin user.
     admin_user = (
-        User.query
-        .join(User.role)
+        User.query.join(User.role)
         .filter(
-            User.is_active.is_(True),
+            User.is_active == True,  # pylint: disable=singleton-comparison
             User.role.has(role_name="admin"),
         )
         .first()

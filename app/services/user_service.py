@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 # -- User lookup -----------------------------------------------------------
 
+
 def get_user_by_id(user_id: int) -> User | None:
     """Return a user by primary key, or None if not found."""
     return db.session.get(User, user_id)
@@ -51,11 +52,12 @@ def get_all_users(
     """
     query = User.query.order_by(User.last_name, User.first_name)
     if not include_inactive:
-        query = query.filter(User.is_active.is_(True))
+        query = query.filter(User.is_active == True)
     return query.paginate(page=page, per_page=per_page, error_out=False)
 
 
 # -- User creation and provisioning ----------------------------------------
+
 
 def provision_user(
     email: str,
@@ -222,6 +224,7 @@ def reactivate_user(user_id: int, changed_by: int | None = None) -> User:
 
 # -- Scope management ------------------------------------------------------
 
+
 def set_user_scopes(
     user_id: int,
     scopes: list[dict],
@@ -246,8 +249,11 @@ def set_user_scopes(
 
     # Capture old scopes for audit.
     old_scopes = [
-        {"scope_type": s.scope_type, "department_id": s.department_id,
-         "division_id": s.division_id}
+        {
+            "scope_type": s.scope_type,
+            "department_id": s.department_id,
+            "division_id": s.division_id,
+        }
         for s in user.scopes
     ]
 
@@ -291,14 +297,10 @@ def _add_org_scope(user: User) -> None:
 
 # -- Role helpers ----------------------------------------------------------
 
+
 def get_all_roles() -> list[Role]:
     """Return all active roles, ordered by name."""
-    return (
-        Role.query
-        .filter_by(is_active=True)
-        .order_by(Role.role_name)
-        .all()
-    )
+    return Role.query.filter_by(is_active=True).order_by(Role.role_name).all()
 
 
 def record_login(user: User) -> None:

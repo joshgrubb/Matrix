@@ -34,6 +34,7 @@ ZERO = Decimal("0.00")
 # Data classes for structured cost results
 # =========================================================================
 
+
 @dataclass
 class HardwareCostLine:
     """A single hardware cost line item for a position."""
@@ -127,6 +128,7 @@ class OrganizationCostSummary:
 # Position-level cost calculation (core logic)
 # =========================================================================
 
+
 def calculate_position_cost(position_id: int) -> PositionCostSummary:
     """
     Calculate the full cost breakdown for a single position.
@@ -162,11 +164,7 @@ def calculate_position_cost(position_id: int) -> PositionCostSummary:
     )
 
     # -- Hardware costs ----------------------------------------------------
-    hw_reqs = (
-        PositionHardware.query
-        .filter_by(position_id=position_id)
-        .all()
-    )
+    hw_reqs = PositionHardware.query.filter_by(position_id=position_id).all()
     for req in hw_reqs:
         hw_type = req.hardware_type
         unit_cost = hw_type.estimated_cost or ZERO
@@ -187,11 +185,7 @@ def calculate_position_cost(position_id: int) -> PositionCostSummary:
         summary.hardware_total += position_total
 
     # -- Software costs ----------------------------------------------------
-    sw_reqs = (
-        PositionSoftware.query
-        .filter_by(position_id=position_id)
-        .all()
-    )
+    sw_reqs = PositionSoftware.query.filter_by(position_id=position_id).all()
     for req in sw_reqs:
         sw = req.software
         if sw.license_model == "per_user":
@@ -231,17 +225,14 @@ def calculate_position_cost(position_id: int) -> PositionCostSummary:
 # Aggregated cost calculations
 # =========================================================================
 
+
 def calculate_division_costs(division_id: int) -> DivisionCostSummary:
     """Aggregate costs across all active positions in a division."""
     division = db.session.get(Division, division_id)
     if division is None:
         raise ValueError(f"Division ID {division_id} not found.")
 
-    positions = (
-        Position.query
-        .filter_by(division_id=division_id, is_active=True)
-        .all()
-    )
+    positions = Position.query.filter_by(division_id=division_id, is_active=True).all()
 
     summary = DivisionCostSummary(
         division_id=division.id,
@@ -267,11 +258,9 @@ def calculate_department_costs(department_id: int) -> DepartmentCostSummary:
     if department is None:
         raise ValueError(f"Department ID {department_id} not found.")
 
-    divisions = (
-        Division.query
-        .filter_by(department_id=department_id, is_active=True)
-        .all()
-    )
+    divisions = Division.query.filter_by(
+        department_id=department_id, is_active=True
+    ).all()
 
     summary = DepartmentCostSummary(
         department_id=department.id,
@@ -323,7 +312,9 @@ def get_department_cost_breakdown(
 
     If a user is provided, results are scope-filtered.
     """
-    from app.services import organization_service  # pylint: disable=import-outside-toplevel
+    from app.services import (
+        organization_service,
+    )  # pylint: disable=import-outside-toplevel
 
     if user is not None:
         departments = organization_service.get_departments(user)
@@ -339,6 +330,7 @@ def get_department_cost_breakdown(
 # =========================================================================
 # Tenant software cost distribution (internal helper)
 # =========================================================================
+
 
 def _calculate_tenant_share_for_position(
     software: Software,
@@ -368,7 +360,7 @@ def _calculate_tenant_share_for_position(
         db.session.query(func.coalesce(func.sum(Position.authorized_count), 0))
         .filter(
             Position.id.in_(covered_position_ids),
-            Position.is_active.is_(True),
+            Position.is_active == True,
         )
         .scalar()
     )
@@ -387,20 +379,14 @@ def _get_covered_position_ids(software_id: int) -> set[int]:
     Uses set union across all coverage rows to prevent double-counting
     when a position falls under multiple coverage definitions.
     """
-    coverage_rows = (
-        SoftwareCoverage.query
-        .filter_by(software_id=software_id)
-        .all()
-    )
+    coverage_rows = SoftwareCoverage.query.filter_by(software_id=software_id).all()
 
     position_ids = set()
     for cov in coverage_rows:
         if cov.scope_type == "organization":
             # All active positions in the org.
             rows = (
-                db.session.query(Position.id)
-                .filter(Position.is_active.is_(True))
-                .all()
+                db.session.query(Position.id).filter(Position.is_active == True).all()
             )
             position_ids.update(r[0] for r in rows)
 
@@ -410,7 +396,7 @@ def _get_covered_position_ids(software_id: int) -> set[int]:
                 .join(Division)
                 .filter(
                     Division.department_id == cov.department_id,
-                    Position.is_active.is_(True),
+                    Position.is_active == True,
                 )
                 .all()
             )
@@ -421,7 +407,7 @@ def _get_covered_position_ids(software_id: int) -> set[int]:
                 db.session.query(Position.id)
                 .filter(
                     Position.division_id == cov.division_id,
-                    Position.is_active.is_(True),
+                    Position.is_active == True,
                 )
                 .all()
             )

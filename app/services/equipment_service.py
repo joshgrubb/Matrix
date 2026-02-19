@@ -31,11 +31,12 @@ logger = logging.getLogger(__name__)
 # Hardware Types
 # =========================================================================
 
+
 def get_hardware_types(include_inactive: bool = False) -> list[HardwareType]:
     """Return all hardware types ordered by name."""
     query = HardwareType.query.order_by(HardwareType.type_name)
     if not include_inactive:
-        query = query.filter(HardwareType.is_active.is_(True))
+        query = query.filter(HardwareType.is_active == True)
     return query.all()
 
 
@@ -119,8 +120,7 @@ def update_hardware_type(
 
     # Track whether cost changed for history recording.
     cost_changed = (
-        estimated_cost is not None
-        and estimated_cost != hw_type.estimated_cost
+        estimated_cost is not None and estimated_cost != hw_type.estimated_cost
     )
 
     if type_name is not None:
@@ -193,11 +193,9 @@ def _record_hardware_cost_history(
 
 def _close_hardware_cost_history(hw_type: HardwareType) -> None:
     """Set end_date on the current open cost history row (no commit)."""
-    current = (
-        HardwareTypeCostHistory.query
-        .filter_by(hardware_type_id=hw_type.id, end_date=None)
-        .first()
-    )
+    current = HardwareTypeCostHistory.query.filter_by(
+        hardware_type_id=hw_type.id, end_date=None
+    ).first()
     if current:
         current.end_date = datetime.now(timezone.utc)
 
@@ -206,11 +204,12 @@ def _close_hardware_cost_history(hw_type: HardwareType) -> None:
 # Software Types (categories)
 # =========================================================================
 
+
 def get_software_types(include_inactive: bool = False) -> list[SoftwareType]:
     """Return all software type categories ordered by name."""
     query = SoftwareType.query.order_by(SoftwareType.type_name)
     if not include_inactive:
-        query = query.filter(SoftwareType.is_active.is_(True))
+        query = query.filter(SoftwareType.is_active == True)
     return query.all()
 
 
@@ -265,13 +264,14 @@ def update_software_type(
 # Software Families
 # =========================================================================
 
+
 def get_software_families(
     include_inactive: bool = False,
 ) -> list[SoftwareFamily]:
     """Return all software families ordered by name."""
     query = SoftwareFamily.query.order_by(SoftwareFamily.family_name)
     if not include_inactive:
-        query = query.filter(SoftwareFamily.is_active.is_(True))
+        query = query.filter(SoftwareFamily.is_active == True)
     return query.all()
 
 
@@ -283,6 +283,7 @@ def get_software_family_by_id(family_id: int) -> SoftwareFamily | None:
 # =========================================================================
 # Software Products
 # =========================================================================
+
 
 def get_software_products(
     include_inactive: bool = False,
@@ -300,7 +301,7 @@ def get_software_products(
     """
     query = Software.query.order_by(Software.name)
     if not include_inactive:
-        query = query.filter(Software.is_active.is_(True))
+        query = query.filter(Software.is_active == True)
     if software_type_id is not None:
         query = query.filter(Software.software_type_id == software_type_id)
     return query.all()
@@ -396,9 +397,9 @@ def update_software(
 
     # Check if cost fields are changing.
     cost_changed = (
-        ("cost_per_license" in kwargs and kwargs["cost_per_license"] != sw.cost_per_license)
-        or ("total_cost" in kwargs and kwargs["total_cost"] != sw.total_cost)
-    )
+        "cost_per_license" in kwargs
+        and kwargs["cost_per_license"] != sw.cost_per_license
+    ) or ("total_cost" in kwargs and kwargs["total_cost"] != sw.total_cost)
 
     previous = {
         "name": sw.name,
@@ -408,8 +409,14 @@ def update_software(
 
     # Apply updates from kwargs.
     allowed_fields = {
-        "name", "software_type_id", "software_family_id", "description",
-        "license_model", "license_tier", "cost_per_license", "total_cost",
+        "name",
+        "software_type_id",
+        "software_family_id",
+        "description",
+        "license_model",
+        "license_tier",
+        "cost_per_license",
+        "total_cost",
     }
     for field, value in kwargs.items():
         if field in allowed_fields:
@@ -428,7 +435,9 @@ def update_software(
         previous_value=previous,
         new_value={
             "name": sw.name,
-            "cost_per_license": str(sw.cost_per_license) if sw.cost_per_license else None,
+            "cost_per_license": (
+                str(sw.cost_per_license) if sw.cost_per_license else None
+            ),
             "total_cost": str(sw.total_cost) if sw.total_cost else None,
         },
     )
@@ -478,11 +487,9 @@ def _record_software_cost_history(
 
 def _close_software_cost_history(sw: Software) -> None:
     """Set end_date on the current open cost history row (no commit)."""
-    current = (
-        SoftwareCostHistory.query
-        .filter_by(software_id=sw.id, end_date=None)
-        .first()
-    )
+    current = SoftwareCostHistory.query.filter_by(
+        software_id=sw.id, end_date=None
+    ).first()
     if current:
         current.end_date = datetime.now(timezone.utc)
 
@@ -491,13 +498,10 @@ def _close_software_cost_history(sw: Software) -> None:
 # Software Coverage (tenant license scope definitions)
 # =========================================================================
 
+
 def get_coverage_for_software(software_id: int) -> list[SoftwareCoverage]:
     """Return all coverage rows for a tenant-licensed software product."""
-    return (
-        SoftwareCoverage.query
-        .filter_by(software_id=software_id)
-        .all()
-    )
+    return SoftwareCoverage.query.filter_by(software_id=software_id).all()
 
 
 def set_software_coverage(

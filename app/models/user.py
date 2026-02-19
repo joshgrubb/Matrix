@@ -220,9 +220,6 @@ class UserScope(db.Model):
         db.ForeignKey("org.division.id"),
         nullable=True,
     )
-    created_at = db.Column(
-        db.DateTime, nullable=False, server_default=db.text("SYSUTCDATETIME()")
-    )
 
     # -- Relationships -----------------------------------------------------
     user = db.relationship("User", back_populates="scopes")

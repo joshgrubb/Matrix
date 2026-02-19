@@ -26,7 +26,6 @@ class Department(db.Model):
     )
     department_name = db.Column(db.String(200), nullable=False)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
-    neogov_id = db.Column(db.String(100), nullable=True, unique=True)
     created_at = db.Column(
         db.DateTime, nullable=False, server_default=db.text("SYSUTCDATETIME()")
     )
@@ -65,7 +64,6 @@ class Division(db.Model):
     )
     division_name = db.Column(db.String(200), nullable=False)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
-    neogov_id = db.Column(db.String(100), nullable=True, unique=True)
     created_at = db.Column(
         db.DateTime, nullable=False, server_default=db.text("SYSUTCDATETIME()")
     )
@@ -111,7 +109,6 @@ class Position(db.Model):
     authorized_count = db.Column(db.Integer, nullable=False, default=0)
     filled_count = db.Column(db.Integer, nullable=False, default=0)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
-    neogov_id = db.Column(db.String(100), nullable=True, unique=True)
     created_at = db.Column(
         db.DateTime, nullable=False, server_default=db.text("SYSUTCDATETIME()")
     )
@@ -162,7 +159,6 @@ class Employee(db.Model):
     last_name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(200), nullable=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
-    neogov_id = db.Column(db.String(100), nullable=True, unique=True)
     created_at = db.Column(
         db.DateTime, nullable=False, server_default=db.text("SYSUTCDATETIME()")
     )

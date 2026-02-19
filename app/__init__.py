@@ -99,30 +99,37 @@ def _register_blueprints(app: Flask) -> None:
 
     # Main blueprint — dashboard at root URL.
     from .blueprints.main import bp as main_bp
+
     app.register_blueprint(main_bp)
 
     # Authentication — login, logout, OAuth2 callbacks.
     from .blueprints.auth import bp as auth_bp
+
     app.register_blueprint(auth_bp, url_prefix="/auth")
 
     # Organization — departments, divisions, positions.
     from .blueprints.organization import bp as org_bp
+
     app.register_blueprint(org_bp, url_prefix="/org")
 
     # Equipment — hardware and software catalog management.
     from .blueprints.equipment import bp as equipment_bp
+
     app.register_blueprint(equipment_bp, url_prefix="/equipment")
 
     # Requirements — guided flow for position requirements.
     from .blueprints.requirements import bp as requirements_bp
+
     app.register_blueprint(requirements_bp, url_prefix="/requirements")
 
     # Reports — cost summaries, exports, reporting.
     from .blueprints.reports import bp as reports_bp
+
     app.register_blueprint(reports_bp, url_prefix="/reports")
 
     # Admin — user management, audit logs, HR sync.
     from .blueprints.admin import bp as admin_bp
+
     app.register_blueprint(admin_bp, url_prefix="/admin")
 
 
@@ -149,8 +156,14 @@ def _register_error_handlers(app: Flask) -> None:
 def _register_cli_commands(app: Flask) -> None:
     """Register custom Flask CLI commands (e.g., flask db-check)."""
     from .cli import register_commands  # pylint: disable=import-outside-toplevel
+    from .seed_dev_admin import (
+        register_seed_commands,
+    )  # pylint: disable=import-outside-toplevel
 
     register_commands(app)
+
+    register_commands(app)
+    register_seed_commands(app)
 
 
 def _configure_logging(app: Flask) -> None:
