@@ -96,28 +96,34 @@ def _register_blueprints(app: Flask) -> None:
     extensions at module level.
     """
     # pylint: disable=import-outside-toplevel
-    from .blueprints.main import bp as main_bp
 
+    # Main blueprint — dashboard at root URL.
+    from .blueprints.main import bp as main_bp
     app.register_blueprint(main_bp)
 
-    # Additional blueprints are registered here as they are built.
-    # from .blueprints.auth import bp as auth_bp
-    # app.register_blueprint(auth_bp, url_prefix="/auth")
-    #
-    # from .blueprints.organization import bp as org_bp
-    # app.register_blueprint(org_bp, url_prefix="/org")
-    #
-    # from .blueprints.equipment import bp as equipment_bp
-    # app.register_blueprint(equipment_bp, url_prefix="/equipment")
-    #
-    # from .blueprints.requirements import bp as requirements_bp
-    # app.register_blueprint(requirements_bp, url_prefix="/requirements")
-    #
-    # from .blueprints.reports import bp as reports_bp
-    # app.register_blueprint(reports_bp, url_prefix="/reports")
-    #
-    # from .blueprints.admin import bp as admin_bp
-    # app.register_blueprint(admin_bp, url_prefix="/admin")
+    # Authentication — login, logout, OAuth2 callbacks.
+    from .blueprints.auth import bp as auth_bp
+    app.register_blueprint(auth_bp, url_prefix="/auth")
+
+    # Organization — departments, divisions, positions.
+    from .blueprints.organization import bp as org_bp
+    app.register_blueprint(org_bp, url_prefix="/org")
+
+    # Equipment — hardware and software catalog management.
+    from .blueprints.equipment import bp as equipment_bp
+    app.register_blueprint(equipment_bp, url_prefix="/equipment")
+
+    # Requirements — guided flow for position requirements.
+    from .blueprints.requirements import bp as requirements_bp
+    app.register_blueprint(requirements_bp, url_prefix="/requirements")
+
+    # Reports — cost summaries, exports, reporting.
+    from .blueprints.reports import bp as reports_bp
+    app.register_blueprint(reports_bp, url_prefix="/reports")
+
+    # Admin — user management, audit logs, HR sync.
+    from .blueprints.admin import bp as admin_bp
+    app.register_blueprint(admin_bp, url_prefix="/admin")
 
 
 def _register_error_handlers(app: Flask) -> None:
