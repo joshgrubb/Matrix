@@ -1,9 +1,9 @@
 """
 Equipment catalog models — ``equip`` schema.
 
-Contains hardware type categories, software products with tiered
-licensing, software families for grouping tiers, and coverage
-definitions for tenant-licensed software cost distribution.
+Hardware types and software products define the catalog of IT items
+that can be assigned as position requirements.  Cost changes are
+tracked in the ``budget`` schema via the service layer.
 """
 
 from app.extensions import db
@@ -11,14 +11,10 @@ from app.extensions import db
 
 class HardwareType(db.Model):
     """
-    Generic category of hardware for position requirements and budgeting.
+    Generic hardware category (e.g., Laptop, Monitor, Docking Station).
 
-    Position requirements point to hardware types (e.g., "Laptop",
-    "Monitor"), not to specific physical assets. ``estimated_cost``
-    is the budgetary cost used for position requirement calculations.
-
-    Changes to ``estimated_cost`` are tracked automatically in
-    ``budget.hardware_type_cost_history`` by the service layer.
+    Not a specific asset — that's Phase 2.  ``estimated_cost`` is the
+    per-unit cost used in budgetary calculations.
     """
 
     __tablename__ = "hardware_type"
@@ -28,7 +24,7 @@ class HardwareType(db.Model):
     type_name = db.Column(db.String(100), unique=True, nullable=False)
     description = db.Column(db.String(500), nullable=True)
     estimated_cost = db.Column(
-        db.Numeric(10, 2), nullable=False, default=0
+        db.Numeric(12, 2), nullable=False, default=0
     )
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(
@@ -42,22 +38,14 @@ class HardwareType(db.Model):
     position_hardware = db.relationship(
         "PositionHardware", back_populates="hardware_type", lazy="dynamic"
     )
-    assets = db.relationship(
-        "Asset", back_populates="hardware_type", lazy="dynamic"
-    )
-    cost_history = db.relationship(
-        "HardwareTypeCostHistory",
-        back_populates="hardware_type",
-        lazy="dynamic",
-    )
 
     def __repr__(self) -> str:
-        return f"<HardwareType {self.type_name}>"
+        return f"<HardwareType {self.type_name} ${self.estimated_cost}>"
 
 
 class SoftwareType(db.Model):
     """
-    Categorization of software by function.
+    Category / functional grouping for software products.
 
     Example: Productivity, Security, GIS, Finance, HR.
     """
@@ -135,10 +123,11 @@ class Software(db.Model):
     __table_args__ = {"schema": "equip"}
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    software_name = db.Column(db.String(200), nullable=False)
     software_type_id = db.Column(
         db.Integer,
         db.ForeignKey("equip.software_type.id"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
     software_family_id = db.Column(
@@ -147,12 +136,15 @@ class Software(db.Model):
         nullable=True,
         index=True,
     )
-    name = db.Column(db.String(200), nullable=False)
+    license_model = db.Column(
+        db.String(20), nullable=False, default="per_user"
+    )
+    cost_per_license = db.Column(
+        db.Numeric(12, 2), nullable=True, default=0
+    )
+    total_cost = db.Column(db.Numeric(14, 2), nullable=True, default=0)
+    tier = db.Column(db.String(50), nullable=True)
     description = db.Column(db.String(500), nullable=True)
-    license_model = db.Column(db.String(20), nullable=False)
-    license_tier = db.Column(db.String(50), nullable=True)
-    cost_per_license = db.Column(db.Numeric(10, 2), nullable=True)
-    total_cost = db.Column(db.Numeric(12, 2), nullable=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(
         db.DateTime, nullable=False, server_default=db.text("SYSUTCDATETIME()")
@@ -168,35 +160,29 @@ class Software(db.Model):
     software_family = db.relationship(
         "SoftwareFamily", back_populates="software"
     )
-    coverage = db.relationship(
-        "SoftwareCoverage", back_populates="software", lazy="dynamic"
-    )
     position_software = db.relationship(
         "PositionSoftware", back_populates="software", lazy="dynamic"
     )
-    cost_history = db.relationship(
-        "SoftwareCostHistory", back_populates="software", lazy="dynamic"
+    coverage = db.relationship(
+        "SoftwareCoverage", back_populates="software", lazy="joined"
     )
 
     def __repr__(self) -> str:
-        return f"<Software {self.name}>"
+        return (
+            f"<Software {self.software_name} "
+            f"({self.license_model})>"
+        )
 
 
 class SoftwareCoverage(db.Model):
     """
-    Defines which organizational units are covered by a tenant-licensed
-    software product.
+    Defines the organizational scope for tenant-licensed software.
 
-    Multiple rows per software allow arbitrary groupings. The cost
-    service calculates the denominator by unioning all positions
-    that fall within coverage rows, using set union to prevent
-    double-counting.
+    A tenant license's total cost is divided across the sum of
+    authorized_count for all positions in the coverage scope.
+    Coverage can be at the organization, department, or division level.
 
-    ``scope_type`` values:
-      - ``organization`` — Entire org.  No FK columns needed.
-      - ``department``   — One department.  Uses ``department_id``.
-      - ``division``     — One division.  Uses ``division_id``.
-      - ``position``     — One specific position.  Uses ``position_id``.
+    ``scope_type`` values: organization, department, division.
     """
 
     __tablename__ = "software_coverage"
@@ -211,20 +197,28 @@ class SoftwareCoverage(db.Model):
     )
     scope_type = db.Column(db.String(20), nullable=False)
     department_id = db.Column(
-        db.Integer, db.ForeignKey("org.department.id"), nullable=True
+        db.Integer,
+        db.ForeignKey("org.department.id"),
+        nullable=True,
     )
     division_id = db.Column(
-        db.Integer, db.ForeignKey("org.division.id"), nullable=True
+        db.Integer,
+        db.ForeignKey("org.division.id"),
+        nullable=True,
     )
-    position_id = db.Column(
-        db.Integer, db.ForeignKey("org.position.id"), nullable=True
+    created_at = db.Column(
+        db.DateTime, nullable=False, server_default=db.text("SYSUTCDATETIME()")
     )
 
     # -- Relationships -----------------------------------------------------
-    software = db.relationship("Software", back_populates="coverage")
+    software = db.relationship(
+        "Software", back_populates="coverage"
+    )
     department = db.relationship("Department")
     division = db.relationship("Division")
-    position = db.relationship("Position")
 
     def __repr__(self) -> str:
-        return f"<SoftwareCoverage software={self.software_id} scope={self.scope_type}>"
+        return (
+            f"<SoftwareCoverage sw={self.software_id} "
+            f"scope={self.scope_type}>"
+        )

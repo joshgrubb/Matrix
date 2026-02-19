@@ -15,7 +15,7 @@ class PositionHardware(db.Model):
 
     Points to ``HardwareType`` (generic category), not a specific asset.
     ``quantity`` is per person in the position (e.g., 2 monitors per person).
-    Total cost = quantity × hardware_type.estimated_cost × position.authorized_count.
+    Total cost = quantity x hardware_type.estimated_cost x position.authorized_count.
     """
 
     __tablename__ = "position_hardware"
@@ -72,7 +72,7 @@ class PositionSoftware(db.Model):
 
     Used for BOTH per-user and tenant-licensed software:
       - Per-user: This record IS the requirement and cost driver.
-        Cost = quantity × software.cost_per_license × position.authorized_count.
+        Cost = quantity x software.cost_per_license x position.authorized_count.
       - Tenant: This record tracks that the position uses the software.
         Cost distribution is calculated via ``SoftwareCoverage``.
     """
@@ -83,7 +83,7 @@ class PositionSoftware(db.Model):
         db.UniqueConstraint(
             "position_id",
             "software_id",
-            name="UQ_position_software_position_software",
+            name="UQ_position_software_position_sw",
         ),
         {"schema": "equip"},
     )

@@ -3,14 +3,14 @@ Model package — imports all models so Alembic and SQLAlchemy can
 discover them automatically when ``flask db`` commands are run.
 
 Each model file corresponds to one database schema:
-  - organization.py → org schema
-  - equipment.py    → equip schema
-  - requirement.py  → equip schema (position junction tables)
-  - user.py         → auth schema
-  - audit.py        → audit schema
-  - budget.py       → budget schema
-  - asset.py        → asset schema (Phase 2)
-  - itsm.py         → itsm schema  (Phase 4)
+  - organization.py -> org schema
+  - equipment.py    -> equip schema
+  - requirement.py  -> equip schema (position junction tables)
+  - user.py         -> auth schema
+  - audit.py        -> audit schema
+  - budget.py       -> budget schema
+  - asset.py        -> asset schema (Phase 2)
+  - itsm.py         -> itsm schema  (Phase 4)
 """
 
 # -- org schema ------------------------------------------------------------

@@ -163,68 +163,43 @@ class User(UserMixin, db.Model):
         """Return the user's full display name."""
         return f"{self.first_name} {self.last_name}"
 
+    @property
+    def role_name(self) -> str:
+        """Shortcut to the user's role name string."""
+        return self.role.role_name if self.role else "unknown"
+
+    def has_role(self, *role_names: str) -> bool:
+        """Check if the user has any of the given role names."""
+        return self.role_name in role_names
+
     def has_permission(self, permission_name: str) -> bool:
-        """
-        Check whether the user's role grants a specific permission.
-
-        Args:
-            permission_name: Dotted permission string (e.g., 'equipment.create').
-
-        Returns:
-            True if the role includes the permission.
-        """
+        """Check if the user's role grants a specific permission."""
+        if not self.role:
+            return False
         return any(
             rp.permission.permission_name == permission_name
             for rp in self.role.role_permissions
         )
 
     def has_org_scope(self) -> bool:
-        """Return True if any of the user's scopes cover the entire organization."""
+        """Return True if the user has organization-wide scope."""
         return any(s.scope_type == "organization" for s in self.scopes)
 
-    def scoped_department_ids(self) -> list[int]:
-        """
-        Return a list of department IDs the user is scoped to.
-
-        Users with organization scope get an empty list (meaning
-        'no restriction'). The service layer should check
-        ``has_org_scope()`` first.
-        """
-        return [
-            s.department_id
-            for s in self.scopes
-            if s.scope_type == "department" and s.department_id is not None
-        ]
-
-    def scoped_division_ids(self) -> list[int]:
-        """
-        Return a list of division IDs the user is scoped to.
-
-        Similar to ``scoped_department_ids()`` but for division-level
-        scope restrictions.
-        """
-        return [
-            s.division_id
-            for s in self.scopes
-            if s.scope_type == "division" and s.division_id is not None
-        ]
-
     def __repr__(self) -> str:
-        return f"<User {self.email}>"
+        return f"<User {self.email} role={self.role_name}>"
 
 
 class UserScope(db.Model):
     """
-    Defines which organizational units a user can access.
+    Organizational scope restricting what data a user can access.
 
     ``scope_type`` values:
-      - ``organization`` — Sees everything.  For admin, IT staff, budget exec.
-      - ``department``   — Sees one department and all its divisions/positions.
-      - ``division``     — Sees one division and its positions.
+      - ``organization``: User can see everything.
+      - ``department``: User is restricted to a specific department.
+      - ``division``: User is restricted to a specific division.
 
-    A user can have multiple scope rows (e.g., manages two divisions).
-    Enforced at the service layer so it applies regardless of which
-    route or export calls the service.
+    A user can have multiple scopes (e.g., access to two departments).
+    Admin and IT staff roles are typically given organization scope.
     """
 
     __tablename__ = "user_scope"
@@ -236,10 +211,17 @@ class UserScope(db.Model):
     )
     scope_type = db.Column(db.String(20), nullable=False)
     department_id = db.Column(
-        db.Integer, db.ForeignKey("org.department.id"), nullable=True
+        db.Integer,
+        db.ForeignKey("org.department.id"),
+        nullable=True,
     )
     division_id = db.Column(
-        db.Integer, db.ForeignKey("org.division.id"), nullable=True
+        db.Integer,
+        db.ForeignKey("org.division.id"),
+        nullable=True,
+    )
+    created_at = db.Column(
+        db.DateTime, nullable=False, server_default=db.text("SYSUTCDATETIME()")
     )
 
     # -- Relationships -----------------------------------------------------
@@ -248,4 +230,7 @@ class UserScope(db.Model):
     division = db.relationship("Division")
 
     def __repr__(self) -> str:
-        return f"<UserScope user={self.user_id} type={self.scope_type}>"
+        return (
+            f"<UserScope user={self.user_id} "
+            f"type={self.scope_type}>"
+        )
