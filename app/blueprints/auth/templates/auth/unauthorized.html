@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Unauthorized — PositionMatrix{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6 text-center">
+        <i class="bi bi-shield-lock display-1 text-warning mb-3"></i>
+        <h1>Access Denied</h1>
+        <p class="text-muted">You do not have permission to access this page.</p>
+        <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary mt-3">
+            <i class="bi bi-house me-1"></i>Return to Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}
