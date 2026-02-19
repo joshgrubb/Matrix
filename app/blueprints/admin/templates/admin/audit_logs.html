@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Logs — Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Audit Logs</h1>
+</div>
+
+<!-- Filter bar -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label for="action_type" class="form-label">Action Type</label>
+                <select name="action_type" id="action_type" class="form-select">
+                    <option value="">All Actions</option>
+                    <option value="CREATE" {% if selected_action == 'CREATE' %}selected{% endif %}>CREATE</option>
+                    <option value="UPDATE" {% if selected_action == 'UPDATE' %}selected{% endif %}>UPDATE</option>
+                    <option value="DELETE" {% if selected_action == 'DELETE' %}selected{% endif %}>DELETE</option>
+                    <option value="LOGIN" {% if selected_action == 'LOGIN' %}selected{% endif %}>LOGIN</option>
+                    <option value="LOGOUT" {% if selected_action == 'LOGOUT' %}selected{% endif %}>LOGOUT</option>
+                    <option value="SYNC" {% if selected_action == 'SYNC' %}selected{% endif %}>SYNC</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="entity_type" class="form-label">Entity Type</label>
+                <select name="entity_type" id="entity_type" class="form-select">
+                    <option value="">All Entities</option>
+                    {% for et in entity_types %}
+                    <option value="{{ et }}" {% if selected_entity == et %}selected{% endif %}>{{ et }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary">Filter</button>
+                {% if selected_action or selected_entity or selected_user_id %}
+                <a href="{{ url_for('admin.audit_logs') }}" class="btn btn-outline-secondary ms-1">Clear</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Audit log table -->
+<div class="card">
+    <div class="card-body">
+        {% if logs.items %}
+        <table class="table table-sm table-hover">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>Entity</th>
+                    <th>Entity ID</th>
+                    <th>IP Address</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs.items %}
+                <tr>
+                    <td>
+                        <small>{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</small>
+                    </td>
+                    <td>
+                        {% if log.user %}
+                        {{ log.user.full_name }}
+                        {% else %}
+                        <span class="text-muted">System</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge
+                            {% if log.action_type == 'CREATE' %}bg-success
+                            {% elif log.action_type == 'UPDATE' %}bg-primary
+                            {% elif log.action_type == 'DELETE' %}bg-danger
+                            {% elif log.action_type == 'LOGIN' %}bg-info
+                            {% elif log.action_type == 'LOGOUT' %}bg-secondary
+                            {% else %}bg-warning text-dark{% endif %}">
+                            {{ log.action_type }}
+                        </span>
+                    </td>
+                    <td>{{ log.entity_type }}</td>
+                    <td>{{ log.entity_id or '—' }}</td>
+                    <td><small>{{ log.ip_address or '—' }}</small></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Pagination -->
+        {% if logs.pages > 1 %}
+        {% include "components/_pagination.html" %}
+        {% endif %}
+        {% else %}
+        <p class="text-muted">No audit log entries match the current filters.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

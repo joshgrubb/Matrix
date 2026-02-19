@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}HR Sync — Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>NeoGov HR Sync</h1>
+    <form method="POST" action="{{ url_for('admin.hr_sync_run') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-primary"
+                onclick="return confirm('Run a full HR sync from NeoGov? This may take a few minutes.');">
+            Run Full Sync
+        </button>
+    </form>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">About HR Sync</h5>
+    </div>
+    <div class="card-body">
+        <p>
+            The HR Sync pulls the latest organizational structure from NeoGov,
+            including departments, divisions, positions, and employees. New records
+            are created, changed records are updated, and records no longer in NeoGov
+            are soft-deleted (deactivated).
+        </p>
+        <p class="text-muted mb-0">
+            Syncs are triggered manually. The sync respects NeoGov as the authoritative
+            source of truth for organizational data.
+        </p>
+    </div>
+</div>
+
+<!-- Sync history table -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Sync History</h5>
+    </div>
+    <div class="card-body">
+        {% if sync_logs.items %}
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Triggered By</th>
+                    <th>Duration</th>
+                    <th>Error</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in sync_logs.items %}
+                <tr>
+                    <td>{{ log.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td>{{ log.sync_type }}</td>
+                    <td>
+                        {% if log.status == 'completed' %}
+                        <span class="badge bg-success">Completed</span>
+                        {% elif log.status == 'started' %}
+                        <span class="badge bg-info">In Progress</span>
+                        {% elif log.status == 'failed' %}
+                        <span class="badge bg-danger">Failed</span>
+                        {% else %}
+                        <span class="badge bg-secondary">{{ log.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if log.triggered_by_user %}
+                        {{ log.triggered_by_user.full_name }}
+                        {% else %}
+                        <span class="text-muted">System</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if log.completed_at and log.started_at %}
+                        {{ (log.completed_at - log.started_at).total_seconds()|int }}s
+                        {% else %}
+                        —
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if log.error_message %}
+                        <small class="text-danger">{{ log.error_message[:100] }}{% if log.error_message|length > 100 %}...{% endif %}</small>
+                        {% else %}
+                        —
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if sync_logs.pages > 1 %}
+        {% include "components/_pagination.html" %}
+        {% endif %}
+        {% else %}
+        <p class="text-muted">No sync history available. Run your first sync above.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

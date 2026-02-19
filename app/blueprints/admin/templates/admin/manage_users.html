@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Users — Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Manage Users</h1>
+    <div>
+        <a href="{{ url_for('admin.manage_users', show_inactive='1' if not show_inactive else '0') }}"
+           class="btn btn-outline-secondary btn-sm">
+            {% if show_inactive %}Hide{% else %}Show{% endif %} Inactive
+        </a>
+    </div>
+</div>
+
+<!-- Provision new user form -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Pre-Provision User</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('admin.provision_user') }}" class="row g-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="col-md-3">
+                <label for="email" class="form-label">Email</label>
+                <input type="email" class="form-control" id="email" name="email" required>
+            </div>
+            <div class="col-md-2">
+                <label for="first_name" class="form-label">First Name</label>
+                <input type="text" class="form-control" id="first_name" name="first_name" required>
+            </div>
+            <div class="col-md-2">
+                <label for="last_name" class="form-label">Last Name</label>
+                <input type="text" class="form-control" id="last_name" name="last_name" required>
+            </div>
+            <div class="col-md-2">
+                <label for="role_name" class="form-label">Role</label>
+                <select class="form-select" id="role_name" name="role_name">
+                    {% for role in roles %}
+                    <option value="{{ role.role_name }}"
+                            {% if role.role_name == 'read_only' %}selected{% endif %}>
+                        {{ role.role_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary">Provision User</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- User list -->
+<div class="card">
+    <div class="card-body">
+        {% if users.items %}
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Scope</th>
+                    <th>Status</th>
+                    <th>Last Login</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users.items %}
+                <tr{% if not user.is_active %} class="table-secondary"{% endif %}>
+                    <td>{{ user.full_name }}</td>
+                    <td>{{ user.email }}</td>
+                    <td>
+                        <!-- Inline role change form -->
+                        <form method="POST"
+                              action="{{ url_for('admin.update_user_role', user_id=user.id) }}"
+                              class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <select name="role_name" class="form-select form-select-sm d-inline-block"
+                                    style="width: auto;" onchange="this.form.submit()">
+                                {% for role in roles %}
+                                <option value="{{ role.role_name }}"
+                                        {% if user.role_name == role.role_name %}selected{% endif %}>
+                                    {{ role.role_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </td>
+                    <td>
+                        {% if user.has_org_scope() %}
+                        <span class="badge bg-info">Organization</span>
+                        {% else %}
+                        {% for scope in user.scopes %}
+                        <span class="badge bg-secondary">
+                            {{ scope.scope_type }}
+                            {% if scope.department %}: {{ scope.department.department_name }}{% endif %}
+                            {% if scope.division %}: {{ scope.division.division_name }}{% endif %}
+                        </span>
+                        {% endfor %}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if user.is_active %}
+                        <span class="badge bg-success">Active</span>
+                        {% else %}
+                        <span class="badge bg-danger">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if user.last_login %}
+                        {{ user.last_login.strftime('%Y-%m-%d %H:%M') }}
+                        {% else %}
+                        <span class="text-muted">Never</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if user.is_active %}
+                        <form method="POST"
+                              action="{{ url_for('admin.deactivate_user', user_id=user.id) }}"
+                              class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger"
+                                    onclick="return confirm('Deactivate this user?');">
+                                Deactivate
+                            </button>
+                        </form>
+                        {% else %}
+                        <form method="POST"
+                              action="{{ url_for('admin.reactivate_user', user_id=user.id) }}"
+                              class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-outline-success">
+                                Reactivate
+                            </button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Pagination -->
+        {% if users.pages > 1 %}
+        {% include "components/_pagination.html" %}
+        {% endif %}
+        {% else %}
+        <p class="text-muted">No users found.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
