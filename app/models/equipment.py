@@ -123,7 +123,7 @@ class Software(db.Model):
     __table_args__ = {"schema": "equip"}
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    software_name = db.Column(db.String(200), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
     software_type_id = db.Column(
         db.Integer,
         db.ForeignKey("equip.software_type.id"),
@@ -143,7 +143,7 @@ class Software(db.Model):
         db.Numeric(12, 2), nullable=True, default=0
     )
     total_cost = db.Column(db.Numeric(14, 2), nullable=True, default=0)
-    tier = db.Column(db.String(50), nullable=True)
+    license_tier = db.Column(db.String(50), nullable=True)
     description = db.Column(db.String(500), nullable=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(
@@ -169,7 +169,7 @@ class Software(db.Model):
 
     def __repr__(self) -> str:
         return (
-            f"<Software {self.software_name} "
+            f"<Software {self.name} "
             f"({self.license_model})>"
         )
 
@@ -206,9 +206,9 @@ class SoftwareCoverage(db.Model):
         db.ForeignKey("org.division.id"),
         nullable=True,
     )
-    created_at = db.Column(
-        db.DateTime, nullable=False, server_default=db.text("SYSUTCDATETIME()")
-    )
+    # created_at = db.Column(
+    #     db.DateTime, nullable=False, server_default=db.text("SYSUTCDATETIME()")
+    # )
     position_id = db.Column(
         db.Integer,
         db.ForeignKey("org.position.id"),
