@@ -43,7 +43,8 @@ class BaseConfig:
     AZURE_TENANT_ID = os.environ.get("AZURE_TENANT_ID", "")
     AZURE_AUTHORITY = os.environ.get(
         "AZURE_AUTHORITY",
-        f"https://login.microsoftonline.com/{os.environ.get('AZURE_TENANT_ID', 'common')}",
+        f"https://login.microsoftonline.com/"
+        f"{os.environ.get('AZURE_TENANT_ID', 'common')}",
     )
     AZURE_REDIRECT_URI = os.environ.get(
         "AZURE_REDIRECT_URI", "http://localhost:5000/auth/callback"
