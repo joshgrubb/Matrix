@@ -1,10 +1,11 @@
 {#
-  HTMX partial: Position <option> elements.
+HTMX partial: Position <option> elements.
 
   Returned by the organization blueprint's htmx_positions endpoint.
   Swapped into a <select> element via HTMX.
-#}
-<option value="">— Select Position —</option>
-{% for pos in positions %}
-<option value="{{ pos.id }}">{{ pos.position_code }} — {{ pos.position_title }} ({{ pos.authorized_count }} auth)</option>
-{% endfor %}
+    #}
+    <option value="">— Select Position —</option>
+    {% for pos in positions %}
+    <option value="{{ pos.id }}">{{ pos.position_code }} — {{ pos.position_title }} ({{ pos.authorized_count }} auth)
+    </option>
+    {% endfor %}

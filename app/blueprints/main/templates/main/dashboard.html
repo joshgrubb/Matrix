@@ -3,84 +3,125 @@
 {% block title %}Dashboard — PositionMatrix{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>Dashboard</h1>
+<div class="pm-page-header">
+    <div>
+        <h1>Dashboard</h1>
+        <p>Welcome back, {{ current_user.full_name }}. Here's your workspace.</p>
+    </div>
 </div>
 
-<div class="row g-4 mb-4">
-    <!-- Quick stats cards -->
-    <div class="col-md-4">
-        <div class="card text-bg-primary">
-            <div class="card-body">
-                <h5 class="card-title">Organization</h5>
-                <p class="card-text">View departments, divisions, and positions synced from NeoGov.</p>
-                <a href="{{ url_for('organization.departments') }}" class="btn btn-light btn-sm">
-                    Browse Organization
+{# ── Quick-access feature cards ── #}
+<div class="row g-3 mb-4">
+
+    {# -- Organization card -- #}
+    <div class="col-md-6 col-lg-4">
+        <div class="pm-card pm-card-hover h-100">
+            <div class="pm-feature-card">
+                <div class="pm-feature-icon pm-stat-icon--blue">
+                    <i class="bi bi-diagram-3"></i>
+                </div>
+                <h3>Organization</h3>
+                <p>View departments, divisions, and positions synced from NeoGov.</p>
+                <a href="{{ url_for('organization.departments') }}" class="pm-btn pm-btn-primary pm-btn-sm mt-auto">
+                    <i class="bi bi-arrow-right"></i>
+                    Browse Departments
                 </a>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card text-bg-success">
-            <div class="card-body">
-                <h5 class="card-title">Requirements</h5>
-                <p class="card-text">Configure hardware and software requirements for positions.</p>
-                <a href="{{ url_for('requirements.select_position') }}" class="btn btn-light btn-sm">
+
+    {# -- Requirements card -- #}
+    <div class="col-md-6 col-lg-4">
+        <div class="pm-card pm-card-hover h-100">
+            <div class="pm-feature-card">
+                <div class="pm-feature-icon" style="background: var(--pm-success-bg); color: var(--pm-success);">
+                    <i class="bi bi-list-check"></i>
+                </div>
+                <h3>Requirements</h3>
+                <p>Configure hardware and software requirements for positions.</p>
+                <a href="{{ url_for('requirements.select_position') }}" class="pm-btn pm-btn-primary pm-btn-sm mt-auto">
+                    <i class="bi bi-arrow-right"></i>
                     Manage Requirements
                 </a>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card text-bg-info">
-            <div class="card-body">
-                <h5 class="card-title">Reports</h5>
-                <p class="card-text">View cost summaries and export data by department.</p>
-                <a href="{{ url_for('reports.cost_summary') }}" class="btn btn-light btn-sm">
+
+    {# -- Reports card -- #}
+    <div class="col-md-6 col-lg-4">
+        <div class="pm-card pm-card-hover h-100">
+            <div class="pm-feature-card">
+                <div class="pm-feature-icon" style="background: var(--pm-warning-bg); color: var(--pm-warning);">
+                    <i class="bi bi-bar-chart-line"></i>
+                </div>
+                <h3>Reports</h3>
+                <p>View cost summaries and export data by department.</p>
+                <a href="{{ url_for('reports.cost_summary') }}" class="pm-btn pm-btn-primary pm-btn-sm mt-auto">
+                    <i class="bi bi-arrow-right"></i>
                     View Reports
                 </a>
             </div>
         </div>
     </div>
+
 </div>
 
-<div class="row g-4">
+{# ── Secondary action cards ── #}
+<div class="row g-3">
+
+    {# -- Equipment Catalog -- #}
     <div class="col-md-6">
-        <div class="card">
+        <div class="pm-card">
             <div class="card-header">
-                <h5 class="mb-0">Equipment Catalog</h5>
+                <i class="bi bi-cpu me-2"></i>Equipment Catalog
             </div>
             <div class="card-body">
-                <p>Manage the hardware types and software products available for assignment.</p>
-                <a href="{{ url_for('equipment.hardware_list') }}" class="btn btn-outline-secondary btn-sm me-2">
-                    Hardware Types
-                </a>
-                <a href="{{ url_for('equipment.software_list') }}" class="btn btn-outline-secondary btn-sm">
-                    Software Products
-                </a>
+                <p class="pm-text-muted mb-3">
+                    Manage the hardware types and software products available for assignment to positions.
+                </p>
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="{{ url_for('equipment.hardware_list') }}" class="pm-btn pm-btn-secondary pm-btn-sm">
+                        <i class="bi bi-pc-display"></i>
+                        Hardware Types
+                    </a>
+                    <a href="{{ url_for('equipment.software_list') }}" class="pm-btn pm-btn-secondary pm-btn-sm">
+                        <i class="bi bi-window-stack"></i>
+                        Software Products
+                    </a>
+                </div>
             </div>
         </div>
     </div>
+
+    {# -- Admin panel (admin only) -- #}
     {% if current_user.has_role('admin') %}
     <div class="col-md-6">
-        <div class="card">
+        <div class="pm-card">
             <div class="card-header">
-                <h5 class="mb-0">Administration</h5>
+                <i class="bi bi-shield-lock me-2"></i>Administration
             </div>
             <div class="card-body">
-                <p>Manage users, view audit logs, and trigger HR syncs.</p>
-                <a href="{{ url_for('admin.manage_users') }}" class="btn btn-outline-secondary btn-sm me-2">
-                    Users
-                </a>
-                <a href="{{ url_for('admin.audit_logs') }}" class="btn btn-outline-secondary btn-sm me-2">
-                    Audit Logs
-                </a>
-                <a href="{{ url_for('admin.hr_sync') }}" class="btn btn-outline-secondary btn-sm">
-                    HR Sync
-                </a>
+                <p class="pm-text-muted mb-3">
+                    Manage users, view audit logs, and trigger HR synchronization jobs.
+                </p>
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="{{ url_for('admin.manage_users') }}" class="pm-btn pm-btn-secondary pm-btn-sm">
+                        <i class="bi bi-people"></i>
+                        Users
+                    </a>
+                    <a href="{{ url_for('admin.audit_logs') }}" class="pm-btn pm-btn-secondary pm-btn-sm">
+                        <i class="bi bi-journal-text"></i>
+                        Audit Logs
+                    </a>
+                    <a href="{{ url_for('admin.hr_sync') }}" class="pm-btn pm-btn-secondary pm-btn-sm">
+                        <i class="bi bi-arrow-repeat"></i>
+                        HR Sync
+                    </a>
+                </div>
             </div>
         </div>
     </div>
     {% endif %}
+
 </div>
 {% endblock %}

@@ -3,14 +3,18 @@
 {% block title %}500 Server Error — PositionMatrix{% endblock %}
 
 {% block content %}
-<div class="text-center py-5">
-    <h1 class="display-1 text-danger">500</h1>
-    <h2>Internal Server Error</h2>
-    <p class="lead text-muted">
-        Something went wrong on our end. The error has been logged.
-    </p>
-    <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary">
-        Return to Dashboard
-    </a>
+<div class="pm-error-page">
+    <div>
+        <div class="pm-error-code">500</div>
+        <h2>Something Went Wrong</h2>
+        <p class="pm-text-muted mb-4" style="max-width: 420px; margin-left: auto; margin-right: auto;">
+            An unexpected error occurred on our end. The error has been logged.
+            Please try again, or contact IT support if the problem persists.
+        </p>
+        <a href="{{ url_for('main.dashboard') }}" class="pm-btn pm-btn-primary">
+            <i class="bi bi-house-door"></i>
+            Return to Dashboard
+        </a>
+    </div>
 </div>
 {% endblock %}

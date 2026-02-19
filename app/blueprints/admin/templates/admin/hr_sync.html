@@ -3,89 +3,65 @@
 {% block title %}HR Sync — Admin{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>NeoGov HR Sync</h1>
-    <form method="POST" action="{{ url_for('admin.hr_sync_run') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn btn-primary"
-                onclick="return confirm('Run a full HR sync from NeoGov? This may take a few minutes.');">
-            Run Full Sync
-        </button>
-    </form>
-</div>
-
-<div class="card mb-4">
-    <div class="card-header">
-        <h5 class="mb-0">About HR Sync</h5>
+<div class="pm-page-header">
+    <div>
+        <h1><i class="bi bi-arrow-repeat me-2"></i>HR Sync</h1>
+        <p>Synchronize organization data from NeoGov.</p>
     </div>
-    <div class="card-body">
-        <p>
-            The HR Sync pulls the latest organizational structure from NeoGov,
-            including departments, divisions, positions, and employees. New records
-            are created, changed records are updated, and records no longer in NeoGov
-            are soft-deleted (deactivated).
-        </p>
-        <p class="text-muted mb-0">
-            Syncs are triggered manually. The sync respects NeoGov as the authoritative
-            source of truth for organizational data.
-        </p>
+    <div>
+        <form method="POST" action="{{ url_for('admin.hr_sync_run') }}" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="pm-btn pm-btn-primary pm-btn-sm"
+                data-confirm="Run a full HR sync now? This will update departments, divisions, and positions from NeoGov.">
+                <i class="bi bi-play-fill"></i>
+                Run Full Sync
+            </button>
+        </form>
     </div>
 </div>
 
-<!-- Sync history table -->
-<div class="card">
+{# ── Sync history table ── #}
+<div class="pm-card">
     <div class="card-header">
-        <h5 class="mb-0">Sync History</h5>
+        <i class="bi bi-clock-history me-2"></i>Sync History
     </div>
-    <div class="card-body">
+    <div class="table-responsive">
         {% if sync_logs.items %}
-        <table class="table table-hover">
+        <table class="table pm-table">
             <thead>
                 <tr>
-                    <th>Date</th>
-                    <th>Type</th>
-                    <th>Status</th>
+                    <th>Started</th>
+                    <th>Completed</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-center">Records</th>
                     <th>Triggered By</th>
-                    <th>Duration</th>
                     <th>Error</th>
                 </tr>
             </thead>
             <tbody>
                 {% for log in sync_logs.items %}
                 <tr>
-                    <td>{{ log.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                    <td>{{ log.sync_type }}</td>
-                    <td>
+                    <td><small>{{ log.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</small></td>
+                    <td><small>{{ log.completed_at.strftime('%Y-%m-%d %H:%M:%S') if log.completed_at else '—' }}</small>
+                    </td>
+                    <td class="text-center">
                         {% if log.status == 'completed' %}
-                        <span class="badge bg-success">Completed</span>
-                        {% elif log.status == 'started' %}
-                        <span class="badge bg-info">In Progress</span>
+                        <span class="pm-badge pm-badge-success">Completed</span>
                         {% elif log.status == 'failed' %}
-                        <span class="badge bg-danger">Failed</span>
+                        <span class="pm-badge pm-badge-danger">Failed</span>
+                        {% elif log.status == 'running' %}
+                        <span class="pm-badge pm-badge-info">Running</span>
                         {% else %}
-                        <span class="badge bg-secondary">{{ log.status }}</span>
+                        <span class="pm-badge pm-badge-neutral">{{ log.status }}</span>
                         {% endif %}
                     </td>
+                    <td class="text-center">{{ log.records_processed or '—' }}</td>
                     <td>
-                        {% if log.triggered_by_user %}
-                        {{ log.triggered_by_user.full_name }}
-                        {% else %}
-                        <span class="text-muted">System</span>
-                        {% endif %}
+                        {% if log.user %}{{ log.user.full_name }}
+                        {% else %}<span class="pm-text-muted">System</span>{% endif %}
                     </td>
-                    <td>
-                        {% if log.completed_at and log.started_at %}
-                        {{ (log.completed_at - log.started_at).total_seconds()|int }}s
-                        {% else %}
-                        —
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if log.error_message %}
-                        <small class="text-danger">{{ log.error_message[:100] }}{% if log.error_message|length > 100 %}...{% endif %}</small>
-                        {% else %}
-                        —
-                        {% endif %}
+                    <td class="pm-text-muted">
+                        <small>{{ log.error_message or '—' }}</small>
                     </td>
                 </tr>
                 {% endfor %}
@@ -96,7 +72,10 @@
         {% include "components/_pagination.html" %}
         {% endif %}
         {% else %}
-        <p class="text-muted">No sync history available. Run your first sync above.</p>
+        <div class="pm-empty-state">
+            <i class="bi bi-arrow-repeat d-block"></i>
+            <p>No sync history yet. Click "Run Full Sync" to import data from NeoGov.</p>
+        </div>
         {% endif %}
     </div>
 </div>

@@ -1,299 +1,196 @@
 /*
 ================================================================================
-  PositionMatrix — Application Stylesheet
-  Supplements Bootstrap 5.3 with layout structure, sidebar navigation,
-  navbar theming, and custom utility classes.
+  PositionMatrix — Application Design System
+  A clean, modern design system built on top of Bootstrap 5.3.
+
+  Design goals:
+    - Clear visual hierarchy for non-technical end users.
+    - Persistent sidebar navigation so users always know where they are.
+    - Gentle color palette that feels professional, not sterile.
+    - Larger click targets and readable typography.
+    - Subtle depth, motion, and polish throughout.
+
+  Layout structure:
+    - Fixed sidebar (272px wide on desktop, offcanvas on mobile).
+    - Top bar with user menu and contextual info.
+    - Fluid content area with comfortable max-width.
 
   All custom classes are prefixed with 'pm-' to avoid Bootstrap collisions.
-
-  Layout overview:
-    - Fixed top navbar (56px height)
-    - Fixed sidebar (260px width on desktop, offcanvas on mobile)
-    - Fluid main content area fills remaining space
-
-  Color palette — neutral enterprise tones:
-    --pm-nav-bg:       Dark navy for navbar and sidebar.
-    --pm-nav-hover:    Subtle highlight for nav link hover state.
-    --pm-nav-active:   Active link indicator accent (blue).
-    --pm-content-bg:   Light grey background for main content area.
 ================================================================================
 */
 
-/* ── CSS Custom Properties ── */
+/* ── Import professional fonts ── */
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+
+/* ── CSS Custom Properties (Design Tokens) ── */
 :root {
-    --pm-nav-bg: #1e293b;
-    --pm-nav-text: #cbd5e1;
-    --pm-nav-hover: #334155;
-    --pm-nav-active: #3b82f6;
-    --pm-content-bg: #f1f5f9;
-    --pm-sidebar-width: 260px;
-    --pm-navbar-height: 56px;
+    /* -- Brand palette -- */
+    --pm-brand-50: #eef4ff;
+    --pm-brand-100: #d9e6ff;
+    --pm-brand-200: #bcd4ff;
+    --pm-brand-500: #4a7cdc;
+    --pm-brand-600: #3b65b8;
+    --pm-brand-700: #2d4f94;
+
+    /* -- Neutral palette -- */
+    --pm-gray-25: #fcfcfd;
+    --pm-gray-50: #f8f9fb;
+    --pm-gray-100: #f1f3f7;
+    --pm-gray-200: #e2e6ee;
+    --pm-gray-300: #cdd3de;
+    --pm-gray-400: #9aa3b5;
+    --pm-gray-500: #6b7689;
+    --pm-gray-600: #4e5669;
+    --pm-gray-700: #363d4d;
+    --pm-gray-800: #252a35;
+    --pm-gray-900: #181c24;
+
+    /* -- Semantic colors -- */
+    --pm-success: #2f9461;
+    --pm-success-bg: #ecfaf2;
+    --pm-warning: #c78c20;
+    --pm-warning-bg: #fef9ec;
+    --pm-danger: #d64545;
+    --pm-danger-bg: #fef0f0;
+    --pm-info: #4a7cdc;
+    --pm-info-bg: #eef4ff;
+
+    /* -- Layout dimensions -- */
+    --pm-sidebar-width: 272px;
+    --pm-topbar-height: 0px;
+    /* No separate topbar; sidebar handles nav. */
+    --pm-content-max: 1280px;
+
+    /* -- Typography -- */
+    --pm-font-body: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif;
+    --pm-font-heading: 'DM Sans', 'Segoe UI', system-ui, sans-serif;
+
+    /* -- Shadows -- */
+    --pm-shadow-xs: 0 1px 2px rgba(24, 28, 36, 0.05);
+    --pm-shadow-sm: 0 1px 3px rgba(24, 28, 36, 0.08), 0 1px 2px rgba(24, 28, 36, 0.06);
+    --pm-shadow-md: 0 4px 8px rgba(24, 28, 36, 0.08), 0 2px 4px rgba(24, 28, 36, 0.04);
+    --pm-shadow-lg: 0 12px 24px rgba(24, 28, 36, 0.10), 0 4px 8px rgba(24, 28, 36, 0.06);
+
+    /* -- Transitions -- */
+    --pm-ease: cubic-bezier(0.4, 0, 0.2, 1);
+    --pm-duration: 200ms;
+
+    /* -- Radius -- */
+    --pm-radius-sm: 6px;
+    --pm-radius-md: 10px;
+    --pm-radius-lg: 14px;
 }
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   TOP NAVBAR
+   GLOBAL RESET & TYPOGRAPHY
    ═══════════════════════════════════════════════════════════════════════ */
 
-.pm-navbar {
-    background-color: var(--pm-nav-bg);
-    height: var(--pm-navbar-height);
-    z-index: 1040;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
 }
 
-.pm-navbar .navbar-brand {
-    color: #ffffff;
-    font-size: 1.1rem;
-    letter-spacing: 0.02em;
+html {
+    font-size: 16px;
+    scroll-behavior: smooth;
 }
 
-.pm-navbar .navbar-brand:hover {
-    color: #e2e8f0;
+body {
+    font-family: var(--pm-font-body);
+    background-color: var(--pm-gray-50);
+    color: var(--pm-gray-800);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    margin: 0;
+    min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-family: var(--pm-font-heading);
+    font-weight: 600;
+    color: var(--pm-gray-900);
+    line-height: 1.3;
+    margin-bottom: 0.5em;
+}
+
+h1 {
+    font-size: 1.75rem;
+}
+
+h2 {
+    font-size: 1.5rem;
+}
+
+h3 {
+    font-size: 1.25rem;
+}
+
+h5 {
+    font-size: 1.05rem;
+}
+
+/* Override Bootstrap link color with brand. */
+a {
+    color: var(--pm-brand-600);
+    text-decoration: none;
+    transition: color var(--pm-duration) var(--pm-ease);
+}
+
+a:hover {
+    color: var(--pm-brand-700);
+    text-decoration: underline;
+}
+
+code {
+    font-size: 0.875em;
+    color: var(--pm-brand-700);
+    background: var(--pm-brand-50);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   APP LAYOUT — Sidebar + Content
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.pm-app-layout {
+    display: flex;
+    min-height: 100vh;
 }
 
 
 /* ═══════════════════════════════════════════════════════════════════════
    SIDEBAR NAVIGATION
-   Desktop: fixed column to the left.
-   Mobile (<992px): Bootstrap offcanvas slide-in.
+   Desktop: fixed left column.
+   Mobile (<992px): Bootstrap offcanvas triggered by hamburger.
    ═══════════════════════════════════════════════════════════════════════ */
 
 .pm-sidebar {
     width: var(--pm-sidebar-width);
-    background-color: var(--pm-nav-bg);
-    border-right: 1px solid rgba(255, 255, 255, 0.06);
-    color: var(--pm-nav-text);
-}
-
-/* Desktop: sidebar fixed beside the content area below the navbar. */
-@media (min-width: 992px) {
-    .pm-sidebar {
-        position: fixed;
-        top: var(--pm-navbar-height);
-        bottom: 0;
-        left: 0;
-        overflow-y: auto;
-    }
-}
-
-/* ── Sidebar nav links ── */
-
-.pm-sidebar-nav {
-    padding: 0.75rem 0;
-}
-
-.pm-sidebar-nav .nav-link {
-    color: var(--pm-nav-text);
-    padding: 0.6rem 1.25rem;
-    font-size: 0.875rem;
+    background: var(--pm-gray-900);
+    color: var(--pm-gray-300);
     display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    transition: background-color 0.15s ease, color 0.15s ease;
-    border-left: 3px solid transparent;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 1040;
+    overflow-y: auto;
+    overflow-x: hidden;
+    transition: transform 0.3s var(--pm-ease);
 }
 
-.pm-sidebar-nav .nav-link:hover {
-    background-color: var(--pm-nav-hover);
-    color: #f1f5f9;
-}
-
-.pm-sidebar-nav .nav-link.active {
-    background-color: var(--pm-nav-hover);
-    color: #ffffff;
-    border-left-color: var(--pm-nav-active);
-    font-weight: 500;
-}
-
-.pm-sidebar-nav .nav-link i {
-    font-size: 1.1rem;
-    width: 1.25rem;
-    text-align: center;
-    flex-shrink: 0;
-}
-
-/* ── Sidebar section divider and heading ── */
-
-.pm-sidebar-divider {
-    height: 0;
-    margin: 0.5rem 1.25rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.pm-sidebar-heading {
-    padding: 0.5rem 1.25rem 0.25rem;
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #64748b;
-}
-
-/* ── Sidebar footer (version info) ── */
-
-.pm-sidebar-footer {
-    padding: 0.75rem 1.25rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-
-/* ═══════════════════════════════════════════════════════════════════════
-   MAIN CONTENT AREA
-   ═══════════════════════════════════════════════════════════════════════ */
-
-.pm-main-content {
-    flex: 1;
-    padding: 1.5rem;
-    margin-top: var(--pm-navbar-height);
-    background-color: var(--pm-content-bg);
-    min-height: calc(100vh - var(--pm-navbar-height));
-}
-
-/* Desktop: offset by sidebar width. */
-@media (min-width: 992px) {
-    .pm-main-content {
-        margin-left: var(--pm-sidebar-width);
-    }
-}
-
-
-/* ═══════════════════════════════════════════════════════════════════════
-   PAGE HEADER
-   Consistent page title styling for child templates.
-   ═══════════════════════════════════════════════════════════════════════ */
-
-.pm-page-header {
-    margin-bottom: 1.5rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 1px solid #dee2e6;
-}
-
-.pm-page-header h1 {
-    font-size: 1.5rem;
-    font-weight: 600;
-    margin-bottom: 0.25rem;
-}
-
-.pm-page-header p {
-    color: #6c757d;
-    margin-bottom: 0;
-}
-
-
-/* ═══════════════════════════════════════════════════════════════════════
-   CARD UTILITIES
-   Extend Bootstrap cards with consistent PositionMatrix styling.
-   ═══════════════════════════════════════════════════════════════════════ */
-
-.pm-card {
-    border: none;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-    border-radius: 0.5rem;
-}
-
-.pm-card .card-header {
-    background-color: #ffffff;
-    border-bottom: 1px solid #e9ecef;
-    font-weight: 600;
-    font-size: 0.9rem;
-}
-
-
-/* ═══════════════════════════════════════════════════════════════════════
-   TABLE STYLING
-   Clean, compact table styling for data-heavy pages.
-   ═══════════════════════════════════════════════════════════════════════ */
-
-.pm-table {
-    font-size: 0.875rem;
-}
-
-.pm-table thead th {
-    font-weight: 600;
-    text-transform: uppercase;
-    font-size: 0.75rem;
-    letter-spacing: 0.04em;
-    color: #64748b;
-    border-bottom-width: 2px;
-}
-
-.pm-table tbody tr:hover {
-    background-color: rgba(59, 130, 246, 0.04);
-}
-
-
-/* ═══════════════════════════════════════════════════════════════════════
-   HTMX INDICATORS
-   Loading state feedback for HTMX requests.
-   ═══════════════════════════════════════════════════════════════════════ */
-
-/* Generic HTMX loading indicator — hidden by default, shown during
-   requests on elements with the 'htmx-indicator' class. */
-.htmx-indicator {
-    display: none;
-}
-
-.htmx-request .htmx-indicator,
-.htmx-request.htmx-indicator {
-    display: inline-block;
-}
-
-/* Subtle opacity reduction on the element being updated. */
-.htmx-swapping {
-    opacity: 0.5;
-    transition: opacity 0.15s ease;
-}
-
-
-/* ═══════════════════════════════════════════════════════════════════════
-   COST BADGE
-   Inline badge for displaying dollar amounts in tables and summaries.
-   ═══════════════════════════════════════════════════════════════════════ */
-
-.pm-cost-badge {
-    font-variant-numeric: tabular-nums;
-}
-
-
-/* ═══════════════════════════════════════════════════════════════════════
-   STATUS INDICATORS
-   Small colored dots for active/inactive status display.
-   ═══════════════════════════════════════════════════════════════════════ */
-
-.pm-status-dot {
-    display: inline-block;
-    width: 0.5rem;
-    height: 0.5rem;
-    border-radius: 50%;
-    margin-right: 0.35rem;
-    vertical-align: middle;
-}
-
-.pm-status-dot--active {
-    background-color: #22c55e;
-}
-
-.pm-status-dot--inactive {
-    background-color: #94a3b8;
-}
-
-
-/* ═══════════════════════════════════════════════════════════════════════
-   ERROR PAGES
-   Centered layout for 403, 404, 500 templates.
-   ═══════════════════════════════════════════════════════════════════════ */
-
-.pm-error-icon {
-    opacity: 0.8;
-}
-
-
-/* ═══════════════════════════════════════════════════════════════════════
-   SCROLLBAR STYLING (Sidebar)
-   Thin scrollbar for the sidebar on Webkit and Firefox.
-   ═══════════════════════════════════════════════════════════════════════ */
-
+/* Sidebar scrollbar — thin and unobtrusive. */
 .pm-sidebar::-webkit-scrollbar {
     width: 4px;
 }
@@ -303,11 +200,1006 @@
 }
 
 .pm-sidebar::-webkit-scrollbar-thumb {
-    background-color: #475569;
+    background-color: var(--pm-gray-700);
     border-radius: 2px;
 }
 
 .pm-sidebar {
     scrollbar-width: thin;
-    scrollbar-color: #475569 transparent;
+    scrollbar-color: var(--pm-gray-700) transparent;
+}
+
+/* -- Brand header inside sidebar -- */
+.pm-sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1.25rem 1.25rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    text-decoration: none;
+    flex-shrink: 0;
+}
+
+.pm-sidebar-brand:hover {
+    text-decoration: none;
+}
+
+.pm-sidebar-brand-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: var(--pm-brand-500);
+    border-radius: var(--pm-radius-sm);
+    color: #fff;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.pm-sidebar-brand-text {
+    font-family: var(--pm-font-heading);
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: #ffffff;
+    line-height: 1.2;
+}
+
+.pm-sidebar-brand-text small {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 400;
+    color: var(--pm-gray-400);
+    letter-spacing: 0.03em;
+    margin-top: 2px;
+}
+
+/* -- Section labels -- */
+.pm-sidebar-section {
+    padding: 1.25rem 1.25rem 0.4rem;
+    font-size: 0.675rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--pm-gray-500);
+    flex-shrink: 0;
+}
+
+/* -- Navigation links -- */
+.pm-sidebar-nav {
+    list-style: none;
+    padding: 0.25rem 0.75rem;
+    margin: 0;
+}
+
+.pm-sidebar-nav li {
+    margin-bottom: 2px;
+}
+
+.pm-sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: var(--pm-radius-sm);
+    color: var(--pm-gray-300);
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all var(--pm-duration) var(--pm-ease);
+    position: relative;
+}
+
+.pm-sidebar-link i {
+    font-size: 1.1rem;
+    width: 1.25rem;
+    text-align: center;
+    flex-shrink: 0;
+    opacity: 0.7;
+    transition: opacity var(--pm-duration) var(--pm-ease);
+}
+
+.pm-sidebar-link:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: #ffffff;
+    text-decoration: none;
+}
+
+.pm-sidebar-link:hover i {
+    opacity: 1;
+}
+
+/* Active state — bold left border accent + highlighted background. */
+.pm-sidebar-link.active {
+    background: rgba(74, 124, 220, 0.15);
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.pm-sidebar-link.active::before {
+    content: '';
+    position: absolute;
+    left: -0.75rem;
+    top: 0.25rem;
+    bottom: 0.25rem;
+    width: 3px;
+    background: var(--pm-brand-500);
+    border-radius: 0 2px 2px 0;
+}
+
+.pm-sidebar-link.active i {
+    opacity: 1;
+    color: var(--pm-brand-200);
+}
+
+/* -- Sidebar sub-links (for items like Reports > Cost Summary) -- */
+.pm-sidebar-sub {
+    list-style: none;
+    padding: 0 0 0 2.5rem;
+    margin: 0;
+}
+
+.pm-sidebar-sub .pm-sidebar-link {
+    font-size: 0.85rem;
+    padding: 0.4rem 0.75rem;
+}
+
+/* -- User section at bottom of sidebar -- */
+.pm-sidebar-user {
+    margin-top: auto;
+    padding: 1rem 1.25rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+}
+
+.pm-sidebar-user-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.pm-sidebar-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: var(--pm-brand-600);
+    border-radius: 50%;
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.pm-sidebar-user-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #fff;
+    line-height: 1.2;
+}
+
+.pm-sidebar-user-role {
+    font-size: 0.75rem;
+    color: var(--pm-gray-400);
+}
+
+.pm-sidebar-signout {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.75rem;
+    border-radius: var(--pm-radius-sm);
+    color: var(--pm-gray-400);
+    font-size: 0.825rem;
+    text-decoration: none;
+    transition: all var(--pm-duration) var(--pm-ease);
+}
+
+.pm-sidebar-signout:hover {
+    background: rgba(214, 69, 69, 0.12);
+    color: #f87171;
+    text-decoration: none;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MOBILE TOP BAR (shown only on <992px)
+   Provides hamburger trigger for offcanvas sidebar.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.pm-mobile-topbar {
+    display: none;
+    position: sticky;
+    top: 0;
+    z-index: 1030;
+    background: var(--pm-gray-900);
+    padding: 0.65rem 1rem;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.pm-mobile-topbar .pm-hamburger {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 1.4rem;
+    padding: 0.25rem;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.pm-mobile-topbar .pm-mobile-brand {
+    font-family: var(--pm-font-heading);
+    font-weight: 700;
+    color: #fff;
+    font-size: 1rem;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MAIN CONTENT AREA
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.pm-main {
+    flex: 1;
+    margin-left: var(--pm-sidebar-width);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.pm-content {
+    flex: 1;
+    padding: 2rem 2.5rem;
+    max-width: var(--pm-content-max);
+    width: 100%;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   RESPONSIVE — Collapse sidebar to offcanvas below 992px.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 991.98px) {
+    .pm-sidebar {
+        transform: translateX(-100%);
+    }
+
+    .pm-sidebar.show {
+        transform: translateX(0);
+    }
+
+    .pm-sidebar-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 1035;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s var(--pm-ease), visibility 0.3s;
+    }
+
+    .pm-sidebar-backdrop.show {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .pm-mobile-topbar {
+        display: flex;
+    }
+
+    .pm-main {
+        margin-left: 0;
+    }
+
+    .pm-content {
+        padding: 1.25rem 1rem;
+    }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PAGE HEADER
+   Consistent page title + subtitle + optional action buttons.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.pm-page-header {
+    margin-bottom: 1.75rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--pm-gray-200);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.pm-page-header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 0.15rem;
+}
+
+.pm-page-header p {
+    color: var(--pm-gray-500);
+    margin-bottom: 0;
+    font-size: 0.925rem;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CARD SYSTEM
+   Unified card styling with depth and clear hierarchy.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.pm-card {
+    background: #ffffff;
+    border: 1px solid var(--pm-gray-200);
+    border-radius: var(--pm-radius-md);
+    box-shadow: var(--pm-shadow-sm);
+    transition: box-shadow var(--pm-duration) var(--pm-ease),
+        transform var(--pm-duration) var(--pm-ease);
+    overflow: hidden;
+}
+
+.pm-card-hover:hover {
+    box-shadow: var(--pm-shadow-md);
+    transform: translateY(-1px);
+}
+
+.pm-card .card-header {
+    background: var(--pm-gray-25);
+    border-bottom: 1px solid var(--pm-gray-200);
+    padding: 1rem 1.25rem;
+    font-family: var(--pm-font-heading);
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--pm-gray-800);
+}
+
+.pm-card .card-body {
+    padding: 1.25rem;
+}
+
+/* -- Stat cards (dashboard quick numbers) -- */
+.pm-stat-card {
+    text-align: center;
+    padding: 1.5rem 1rem;
+}
+
+.pm-stat-card .pm-stat-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: var(--pm-radius-md);
+    font-size: 1.3rem;
+    margin-bottom: 0.75rem;
+}
+
+.pm-stat-card .pm-stat-value {
+    font-family: var(--pm-font-heading);
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--pm-gray-900);
+    line-height: 1.2;
+}
+
+.pm-stat-card .pm-stat-label {
+    font-size: 0.825rem;
+    color: var(--pm-gray-500);
+    margin-top: 0.25rem;
+}
+
+/* Stat color variants. */
+.pm-stat-icon--blue {
+    background: var(--pm-info-bg);
+    color: var(--pm-brand-600);
+}
+
+.pm-stat-icon--green {
+    background: var(--pm-success-bg);
+    color: var(--pm-success);
+}
+
+.pm-stat-icon--amber {
+    background: var(--pm-warning-bg);
+    color: var(--pm-warning);
+}
+
+.pm-stat-icon--red {
+    background: var(--pm-danger-bg);
+    color: var(--pm-danger);
+}
+
+/* -- Feature / action cards (dashboard navigation cards) -- */
+.pm-feature-card {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.pm-feature-card .pm-feature-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--pm-radius-sm);
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+    flex-shrink: 0;
+}
+
+.pm-feature-card h3 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.pm-feature-card p {
+    color: var(--pm-gray-500);
+    font-size: 0.9rem;
+    flex: 1;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   BUTTONS
+   Larger, clearer, with descriptive labels. Comfortable click targets.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Primary action button — bold and visible. */
+.pm-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--pm-font-body);
+    font-weight: 600;
+    font-size: 0.875rem;
+    padding: 0.55rem 1.15rem;
+    border-radius: var(--pm-radius-sm);
+    border: 1px solid transparent;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all var(--pm-duration) var(--pm-ease);
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+.pm-btn:hover {
+    text-decoration: none;
+}
+
+.pm-btn-primary {
+    background: var(--pm-brand-600);
+    color: #ffffff;
+    border-color: var(--pm-brand-600);
+}
+
+.pm-btn-primary:hover {
+    background: var(--pm-brand-700);
+    border-color: var(--pm-brand-700);
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(59, 101, 184, 0.3);
+}
+
+.pm-btn-secondary {
+    background: #ffffff;
+    color: var(--pm-gray-700);
+    border-color: var(--pm-gray-300);
+}
+
+.pm-btn-secondary:hover {
+    background: var(--pm-gray-50);
+    border-color: var(--pm-gray-400);
+    color: var(--pm-gray-800);
+}
+
+.pm-btn-success {
+    background: var(--pm-success);
+    color: #ffffff;
+    border-color: var(--pm-success);
+}
+
+.pm-btn-success:hover {
+    background: #267a50;
+    border-color: #267a50;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(47, 148, 97, 0.3);
+}
+
+.pm-btn-danger {
+    background: #ffffff;
+    color: var(--pm-danger);
+    border-color: var(--pm-danger);
+}
+
+.pm-btn-danger:hover {
+    background: var(--pm-danger);
+    color: #ffffff;
+}
+
+/* Size variants. */
+.pm-btn-sm {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.85rem;
+}
+
+.pm-btn-lg {
+    font-size: 1rem;
+    padding: 0.7rem 1.5rem;
+}
+
+/* Full-width button. */
+.pm-btn-block {
+    width: 100%;
+    justify-content: center;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   FORMS
+   Polished inputs with visible focus states and clear labels.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.pm-form-label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--pm-gray-700);
+    margin-bottom: 0.35rem;
+}
+
+.pm-form-label .pm-required {
+    color: var(--pm-danger);
+    margin-left: 2px;
+    font-weight: 400;
+}
+
+.pm-form-hint {
+    font-size: 0.8rem;
+    color: var(--pm-gray-400);
+    margin-top: 0.3rem;
+}
+
+/* Override Bootstrap form-control with our design tokens. */
+.form-control,
+.form-select {
+    font-family: var(--pm-font-body);
+    border-radius: var(--pm-radius-sm);
+    border-color: var(--pm-gray-300);
+    padding: 0.55rem 0.85rem;
+    font-size: 0.9rem;
+    transition: border-color var(--pm-duration) var(--pm-ease),
+        box-shadow var(--pm-duration) var(--pm-ease);
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--pm-brand-500);
+    box-shadow: 0 0 0 3px rgba(74, 124, 220, 0.15);
+}
+
+/* Input group styling. */
+.input-group-text {
+    border-color: var(--pm-gray-300);
+    background: var(--pm-gray-50);
+    font-size: 0.9rem;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   TABLES
+   Clean, readable tables with gentle headers and clear row states.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.pm-table {
+    font-size: 0.875rem;
+    margin-bottom: 0;
+}
+
+.pm-table thead th {
+    background: var(--pm-gray-50);
+    font-weight: 600;
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--pm-gray-500);
+    border-bottom: 2px solid var(--pm-gray-200);
+    padding: 0.75rem 1rem;
+    white-space: nowrap;
+}
+
+.pm-table tbody td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--pm-gray-100);
+    vertical-align: middle;
+    color: var(--pm-gray-700);
+}
+
+.pm-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.pm-table tbody tr {
+    transition: background var(--pm-duration) var(--pm-ease);
+}
+
+.pm-table tbody tr:hover {
+    background: var(--pm-brand-50);
+}
+
+/* Inactive / muted rows. */
+.pm-table .pm-row-inactive td {
+    color: var(--pm-gray-400);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   BADGES
+   Subtle, pill-shaped status badges.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.pm-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.725rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    line-height: 1;
+}
+
+.pm-badge-success {
+    background: var(--pm-success-bg);
+    color: var(--pm-success);
+}
+
+.pm-badge-danger {
+    background: var(--pm-danger-bg);
+    color: var(--pm-danger);
+}
+
+.pm-badge-warning {
+    background: var(--pm-warning-bg);
+    color: var(--pm-warning);
+}
+
+.pm-badge-info {
+    background: var(--pm-info-bg);
+    color: var(--pm-brand-600);
+}
+
+.pm-badge-neutral {
+    background: var(--pm-gray-100);
+    color: var(--pm-gray-500);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   BREADCRUMBS
+   Larger and more visible for wayfinding.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.pm-breadcrumb {
+    font-size: 0.85rem;
+    margin-bottom: 1.25rem;
+    padding: 0.6rem 1rem;
+    background: var(--pm-gray-100);
+    border-radius: var(--pm-radius-sm);
+}
+
+.pm-breadcrumb .breadcrumb {
+    margin-bottom: 0;
+}
+
+.pm-breadcrumb .breadcrumb-item a {
+    color: var(--pm-brand-600);
+    font-weight: 500;
+}
+
+.pm-breadcrumb .breadcrumb-item.active {
+    color: var(--pm-gray-600);
+    font-weight: 600;
+}
+
+.pm-breadcrumb .breadcrumb-item+.breadcrumb-item::before {
+    content: '›';
+    font-weight: 700;
+    color: var(--pm-gray-400);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   FLASH / ALERT MESSAGES
+   Styled with semantic colors and smooth enter animation.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.pm-flash-container {
+    padding: 0 2.5rem;
+    max-width: var(--pm-content-max);
+}
+
+@media (max-width: 991.98px) {
+    .pm-flash-container {
+        padding: 0 1rem;
+    }
+}
+
+.pm-alert {
+    border-radius: var(--pm-radius-sm);
+    border: none;
+    border-left: 4px solid transparent;
+    padding: 0.85rem 1.25rem;
+    font-size: 0.9rem;
+    animation: pm-slide-down 0.3s var(--pm-ease);
+}
+
+.pm-alert-success {
+    background: var(--pm-success-bg);
+    border-left-color: var(--pm-success);
+    color: #1a5c3a;
+}
+
+.pm-alert-danger {
+    background: var(--pm-danger-bg);
+    border-left-color: var(--pm-danger);
+    color: #8b2020;
+}
+
+.pm-alert-warning {
+    background: var(--pm-warning-bg);
+    border-left-color: var(--pm-warning);
+    color: #7a5510;
+}
+
+.pm-alert-info {
+    background: var(--pm-info-bg);
+    border-left-color: var(--pm-info);
+    color: #2d4f94;
+}
+
+@keyframes pm-slide-down {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   EMPTY STATES
+   Friendly, visible indicators when tables/lists have no data.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.pm-empty-state {
+    text-align: center;
+    padding: 3rem 1.5rem;
+    color: var(--pm-gray-400);
+}
+
+.pm-empty-state i {
+    font-size: 2.5rem;
+    margin-bottom: 0.75rem;
+    opacity: 0.5;
+}
+
+.pm-empty-state p {
+    font-size: 0.95rem;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   HTMX INDICATORS
+   Loading feedback for HTMX requests.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.htmx-indicator {
+    display: none;
+}
+
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator {
+    display: inline-block;
+}
+
+.htmx-swapping {
+    opacity: 0.5;
+    transition: opacity 0.15s ease;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   COST DISPLAY
+   Tabular-nums for aligned dollar figures.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.pm-cost {
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   STATUS DOTS
+   Small colored indicators for inline active/inactive display.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.pm-status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 0.4rem;
+    vertical-align: middle;
+}
+
+.pm-status-dot--active {
+    background-color: var(--pm-success);
+}
+
+.pm-status-dot--inactive {
+    background-color: var(--pm-gray-400);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ERROR PAGES
+   Centered layout with a friendly illustration feel.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.pm-error-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    text-align: center;
+}
+
+.pm-error-code {
+    font-family: var(--pm-font-heading);
+    font-size: 5rem;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--pm-gray-200);
+    margin-bottom: 0.5rem;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   LOGIN PAGE
+   Centered card with brand accent.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.pm-login-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: linear-gradient(135deg, var(--pm-gray-900) 0%, #2d3a52 100%);
+}
+
+.pm-login-card {
+    background: #fff;
+    border-radius: var(--pm-radius-lg);
+    box-shadow: var(--pm-shadow-lg);
+    padding: 3rem 2.5rem;
+    width: 100%;
+    max-width: 420px;
+    text-align: center;
+    animation: pm-fade-up 0.5s var(--pm-ease);
+}
+
+.pm-login-logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    background: var(--pm-brand-500);
+    border-radius: var(--pm-radius-md);
+    color: #fff;
+    font-size: 1.75rem;
+    margin-bottom: 1.25rem;
+}
+
+@keyframes pm-fade-up {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PAGINATION
+   Larger, easier-to-click page buttons.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.pagination .page-link {
+    border-radius: var(--pm-radius-sm);
+    margin: 0 2px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--pm-gray-600);
+    border-color: var(--pm-gray-200);
+    padding: 0.45rem 0.8rem;
+}
+
+.pagination .page-item.active .page-link {
+    background: var(--pm-brand-600);
+    border-color: var(--pm-brand-600);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   FOOTER
+   Minimal and unobtrusive.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.pm-footer {
+    padding: 1.25rem 2.5rem;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--pm-gray-400);
+    border-top: 1px solid var(--pm-gray-100);
+    margin-top: auto;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   UTILITY CLASSES
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.pm-text-muted {
+    color: var(--pm-gray-500);
+}
+
+.pm-text-success {
+    color: var(--pm-success);
+}
+
+.pm-text-danger {
+    color: var(--pm-danger);
+}
+
+.pm-text-warning {
+    color: var(--pm-warning);
+}
+
+/* Smooth focus ring for keyboard navigation accessibility. */
+:focus-visible {
+    outline: 2px solid var(--pm-brand-500);
+    outline-offset: 2px;
+}
+
+/* Visually hide but keep accessible for screen readers. */
+.pm-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }

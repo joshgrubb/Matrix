@@ -1,74 +1,106 @@
 {% extends "base.html" %}
 {% block title %}{{ division.division_name }} — Positions{% endblock %}
 {% block content %}
-<nav aria-label="breadcrumb">
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="{{ url_for('organization.departments') }}">Departments</a></li>
-        <li class="breadcrumb-item"><a href="{{ url_for('organization.department_detail', department_id=department.id) }}">{{ department.department_name }}</a></li>
-        <li class="breadcrumb-item active">{{ division.division_name }}</li>
-    </ol>
-</nav>
+<div class="pm-breadcrumb">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('organization.departments') }}">Departments</a></li>
+            <li class="breadcrumb-item">
+                <a href="{{ url_for('organization.department_detail', department_id=department.id) }}">
+                    {{ department.department_name }}
+                </a>
+            </li>
+            <li class="breadcrumb-item active">{{ division.division_name }}</li>
+        </ol>
+    </nav>
+</div>
 
-<h1 class="mb-3">{{ division.division_name }}</h1>
+<div class="pm-page-header">
+    <div>
+        <h1>{{ division.division_name }}</h1>
+        <p>Positions within this division.</p>
+    </div>
+</div>
 
+{# ── Summary stat cards ── #}
 <div class="row g-3 mb-4">
-    <div class="col-md-4">
-        <div class="card text-center">
-            <div class="card-body">
-                <h3 class="card-title text-primary">{{ positions|length }}</h3>
-                <p class="card-text text-muted">Positions</p>
+    <div class="col-sm-4">
+        <div class="pm-card">
+            <div class="pm-stat-card">
+                <div class="pm-stat-icon pm-stat-icon--blue">
+                    <i class="bi bi-briefcase"></i>
+                </div>
+                <div class="pm-stat-value">{{ positions|length }}</div>
+                <div class="pm-stat-label">Positions</div>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card text-center">
-            <div class="card-body">
-                <h3 class="card-title text-success">{{ authorized_count }}</h3>
-                <p class="card-text text-muted">Authorized</p>
+    <div class="col-sm-4">
+        <div class="pm-card">
+            <div class="pm-stat-card">
+                <div class="pm-stat-icon pm-stat-icon--green">
+                    <i class="bi bi-check-circle"></i>
+                </div>
+                <div class="pm-stat-value">{{ authorized_count }}</div>
+                <div class="pm-stat-label">Authorized</div>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card text-center">
-            <div class="card-body">
-                <h3 class="card-title text-info">{{ filled_count }}</h3>
-                <p class="card-text text-muted">Filled</p>
+    <div class="col-sm-4">
+        <div class="pm-card">
+            <div class="pm-stat-card">
+                <div class="pm-stat-icon pm-stat-icon--amber">
+                    <i class="bi bi-person-check"></i>
+                </div>
+                <div class="pm-stat-value">{{ filled_count }}</div>
+                <div class="pm-stat-label">Filled</div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="table-responsive">
-    <table class="table table-hover align-middle">
-        <thead class="table-dark">
-            <tr>
-                <th>Position Code</th>
-                <th>Position Title</th>
-                <th class="text-center">Authorized</th>
-                <th>Status</th>
-                <th class="text-end">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for pos in positions %}
-            <tr>
-                <td><code>{{ pos.position_code }}</code></td>
-                <td>{{ pos.position_title }}</td>
-                <td class="text-center">{{ pos.authorized_count }}</td>
-                <td><span class="badge bg-success">Active</span></td>
-                <td class="text-end">
-                    <a href="{{ url_for('requirements.position_summary', position_id=pos.id) }}"
-                       class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-list-check me-1"></i>Requirements
-                    </a>
-                </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="5" class="text-center text-muted py-4">No positions found.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+{# ── Positions table ── #}
+<div class="pm-card">
+    <div class="table-responsive">
+        <table class="table pm-table">
+            <thead>
+                <tr>
+                    <th>Position Code</th>
+                    <th>Position Title</th>
+                    <th class="text-center">Authorized</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pos in positions %}
+                <tr>
+                    <td><code>{{ pos.position_code }}</code></td>
+                    <td>{{ pos.position_title }}</td>
+                    <td class="text-center">{{ pos.authorized_count }}</td>
+                    <td class="text-center">
+                        <span class="pm-badge pm-badge-success">Active</span>
+                    </td>
+                    <td class="text-end">
+                        <a href="{{ url_for('requirements.position_summary', position_id=pos.id) }}"
+                            class="pm-btn pm-btn-secondary pm-btn-sm">
+                            <i class="bi bi-list-check"></i>
+                            Requirements
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5">
+                        <div class="pm-empty-state">
+                            <i class="bi bi-briefcase d-block"></i>
+                            <p>No positions found in this division.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 {% endblock %}

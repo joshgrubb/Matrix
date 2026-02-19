@@ -3,14 +3,18 @@
 {% block title %}404 Not Found — PositionMatrix{% endblock %}
 
 {% block content %}
-<div class="text-center py-5">
-    <h1 class="display-1 text-warning">404</h1>
-    <h2>Page Not Found</h2>
-    <p class="lead text-muted">
-        The page you're looking for doesn't exist or has been moved.
-    </p>
-    <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary">
-        Return to Dashboard
-    </a>
+<div class="pm-error-page">
+    <div>
+        <div class="pm-error-code">404</div>
+        <h2>Page Not Found</h2>
+        <p class="pm-text-muted mb-4" style="max-width: 420px; margin-left: auto; margin-right: auto;">
+            The page you're looking for doesn't exist or has been moved.
+            Check the address bar or use the sidebar to navigate.
+        </p>
+        <a href="{{ url_for('main.dashboard') }}" class="pm-btn pm-btn-primary">
+            <i class="bi bi-house-door"></i>
+            Return to Dashboard
+        </a>
+    </div>
 </div>
 {% endblock %}

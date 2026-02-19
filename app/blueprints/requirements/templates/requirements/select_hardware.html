@@ -3,22 +3,24 @@
 {% block title %}Select Hardware — {{ position.position_title }}{% endblock %}
 
 {% block content %}
-<!-- Breadcrumb navigation -->
-<nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item">
-            <a href="{{ url_for('requirements.select_position') }}">Select Position</a>
-        </li>
-        <li class="breadcrumb-item active" aria-current="page">Hardware</li>
-        <li class="breadcrumb-item text-muted">Software</li>
-        <li class="breadcrumb-item text-muted">Summary</li>
-    </ol>
-</nav>
+{# ── Step breadcrumb ── #}
+<div class="pm-breadcrumb">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{{ url_for('requirements.select_position') }}">Select Position</a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">Hardware</li>
+            <li class="breadcrumb-item"><span class="pm-text-muted">Software</span></li>
+            <li class="breadcrumb-item"><span class="pm-text-muted">Summary</span></li>
+        </ol>
+    </nav>
+</div>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="pm-page-header">
     <div>
         <h1>Select Hardware</h1>
-        <p class="text-muted mb-0">
+        <p>
             {{ position.position_code }} — {{ position.position_title }}
             ({{ position.authorized_count }} authorized)
         </p>
@@ -28,80 +30,75 @@
 <form method="POST">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-    <div class="card mb-4">
+    <div class="pm-card mb-4">
         <div class="card-header">
-            <h5 class="mb-0">Step 2: Select Hardware Types</h5>
+            <i class="bi bi-2-circle me-2"></i>Step 2: Select Hardware Types
         </div>
         <div class="card-body">
-            <p class="text-muted">
+            <p class="pm-text-muted mb-3">
                 Check each hardware type this position requires and set the quantity per person.
             </p>
             {% if hardware_types %}
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th style="width: 40px;">Select</th>
-                        <th>Hardware Type</th>
-                        <th>Est. Cost</th>
-                        <th style="width: 100px;">Qty / Person</th>
-                        <th>Notes</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for hw in hardware_types %}
-                    {% set is_selected = hw.id in selected %}
-                    <tr>
-                        <td>
-                            <input type="checkbox"
-                                   class="form-check-input"
-                                   name="hw_{{ hw.id }}_selected"
-                                   id="hw_{{ hw.id }}"
-                                   {% if is_selected %}checked{% endif %}>
-                        </td>
-                        <td>
-                            <label for="hw_{{ hw.id }}" class="form-check-label">
-                                {{ hw.type_name }}
-                            </label>
-                            {% if hw.description %}
-                            <br><small class="text-muted">{{ hw.description }}</small>
-                            {% endif %}
-                        </td>
-                        <td>${{ "%.2f"|format(hw.estimated_cost) }}</td>
-                        <td>
-                            <input type="number"
-                                   class="form-control form-control-sm"
-                                   name="hw_{{ hw.id }}_quantity"
-                                   value="{{ selected[hw.id].quantity if is_selected else 1 }}"
-                                   min="1" max="99">
-                        </td>
-                        <td>
-                            <input type="text"
-                                   class="form-control form-control-sm"
-                                   name="hw_{{ hw.id }}_notes"
-                                   value="{{ selected[hw.id].notes or '' if is_selected else '' }}"
-                                   placeholder="Optional note">
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            <div class="table-responsive">
+                <table class="table pm-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">Select</th>
+                            <th>Hardware Type</th>
+                            <th class="text-end">Est. Cost</th>
+                            <th style="width: 100px;">Qty / Person</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for hw in hardware_types %}
+                        {% set is_selected = hw.id in selected %}
+                        <tr>
+                            <td class="text-center">
+                                <input type="checkbox" class="form-check-input" name="hw_{{ hw.id }}" value="1" {% if
+                                    is_selected %}checked{% endif %} id="hw_{{ hw.id }}"
+                                    style="width: 1.2em; height: 1.2em;">
+                            </td>
+                            <td>
+                                <label for="hw_{{ hw.id }}" style="cursor: pointer; font-weight: 500;">
+                                    {{ hw.type_name }}
+                                </label>
+                                {% if hw.description %}
+                                <br><small class="pm-text-muted">{{ hw.description }}</small>
+                                {% endif %}
+                            </td>
+                            <td class="text-end pm-cost">${{ "%.2f"|format(hw.estimated_cost) }}</td>
+                            <td>
+                                <input type="number" class="form-control form-control-sm" name="hw_{{ hw.id }}_quantity"
+                                    value="{{ selected[hw.id].quantity if is_selected else 1 }}" min="1" max="99">
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
             {% else %}
-            <div class="alert alert-info">
-                No hardware types have been configured yet.
-                {% if current_user.has_role('admin', 'it_staff') %}
-                <a href="{{ url_for('equipment.hardware_create') }}">Add hardware types</a> first.
-                {% endif %}
+            <div class="pm-empty-state">
+                <i class="bi bi-cpu d-block"></i>
+                <p>
+                    No hardware types have been configured yet.
+                    {% if current_user.has_role('admin', 'it_staff') %}
+                    <a href="{{ url_for('equipment.hardware_create') }}">Add hardware types</a> first.
+                    {% endif %}
+                </p>
             </div>
             {% endif %}
         </div>
     </div>
 
+    {# ── Navigation buttons ── #}
     <div class="d-flex justify-content-between">
-        <a href="{{ url_for('requirements.select_position') }}" class="btn btn-outline-secondary">
-            &larr; Back to Position
+        <a href="{{ url_for('requirements.select_position') }}" class="pm-btn pm-btn-secondary">
+            <i class="bi bi-arrow-left"></i>
+            Back to Position
         </a>
-        <button type="submit" class="btn btn-primary">
-            Save &amp; Next: Software &rarr;
+        <button type="submit" class="pm-btn pm-btn-primary">
+            Save &amp; Next: Software
+            <i class="bi bi-arrow-right"></i>
         </button>
     </div>
 </form>

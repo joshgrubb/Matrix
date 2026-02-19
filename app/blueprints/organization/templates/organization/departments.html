@@ -1,53 +1,66 @@
 {% extends "base.html" %}
 {% block title %}Departments — PositionMatrix{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1><i class="bi bi-diagram-3 me-2"></i>Departments</h1>
-    <div class="form-check form-switch">
-        <input class="form-check-input" type="checkbox" id="showInactive"
-               {% if show_inactive %}checked{% endif %}
-               onchange="window.location.href='?show_inactive=' + (this.checked ? '1' : '0')">
-        <label class="form-check-label" for="showInactive">Show inactive</label>
+<div class="pm-page-header">
+    <div>
+        <h1><i class="bi bi-diagram-3 me-2"></i>Departments</h1>
+        <p>Organization structure synced from NeoGov.</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="showInactive" {% if show_inactive %}checked{% endif %}
+                onchange="window.location.href='?show_inactive=' + (this.checked ? '1' : '0')">
+            <label class="form-check-label" for="showInactive" style="font-size: 0.85rem;">
+                Show inactive
+            </label>
+        </div>
     </div>
 </div>
 
-<div class="table-responsive">
-    <table class="table table-hover align-middle">
-        <thead class="table-dark">
-            <tr>
-                <th>Department Code</th>
-                <th>Department Name</th>
-                <th>Status</th>
-                <th class="text-end">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for dept in departments %}
-            <tr {% if not dept.is_active %}class="table-secondary"{% endif %}>
-                <td><code>{{ dept.department_code }}</code></td>
-                <td>{{ dept.department_name }}</td>
-                <td>
-                    {% if dept.is_active %}
-                    <span class="badge bg-success">Active</span>
-                    {% else %}
-                    <span class="badge bg-secondary">Inactive</span>
-                    {% endif %}
-                </td>
-                <td class="text-end">
-                    <a href="{{ url_for('organization.department_detail', department_id=dept.id) }}"
-                       class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-eye me-1"></i>View Divisions
-                    </a>
-                </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="4" class="text-center text-muted py-4">
-                    No departments found. Run an HR sync from the Admin panel.
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<div class="pm-card">
+    <div class="table-responsive">
+        <table class="table pm-table">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Department Name</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for dept in departments %}
+                <tr class="{{ 'pm-row-inactive' if not dept.is_active }}">
+                    <td><code>{{ dept.department_code }}</code></td>
+                    <td>{{ dept.department_name }}</td>
+                    <td class="text-center">
+                        {% if dept.is_active %}
+                        <span class="pm-badge pm-badge-success">Active</span>
+                        {% else %}
+                        <span class="pm-badge pm-badge-neutral">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <a href="{{ url_for('organization.department_detail', department_id=dept.id) }}"
+                            class="pm-btn pm-btn-secondary pm-btn-sm">
+                            <i class="bi bi-eye"></i>
+                            View Divisions
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4">
+                        <div class="pm-empty-state">
+                            <i class="bi bi-diagram-3 d-block"></i>
+                            <p>No departments found. Run an HR sync from the Admin panel to import your organization.
+                            </p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 {% endblock %}

@@ -11,146 +11,193 @@
         integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
     <!-- Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-    <!-- Custom application styles -->
+    <!-- PositionMatrix Design System -->
     <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
     {% block extra_css %}{% endblock %}
 </head>
 
 <body>
+    {# ================================================================= #}
+    {# LAYOUT: Sidebar + Main content area #}
+    {# ================================================================= #}
+    <div class="pm-app-layout">
 
-    <!-- ================================================================= -->
-    <!-- Navigation Bar                                                    -->
-    <!-- ================================================================= -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('main.dashboard') }}">
-                <i class="bi bi-pc-display-horizontal me-2"></i>PositionMatrix
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain"
-                aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
+        {# ----- Mobile top bar (hamburger + brand, visible < 992px) ----- #} <div class="pm-mobile-topbar">
+            <button class="pm-hamburger" id="sidebarToggle" aria-label="Open navigation menu">
+                <i class="bi bi-list"></i>
             </button>
-
-            <div class="collapse navbar-collapse" id="navbarMain">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'main.dashboard' %}active{% endif %}"
-                            href="{{ url_for('main.dashboard') }}">
-                            <i class="bi bi-speedometer2 me-1"></i>Dashboard
-                        </a>
-                    </li>
-                    {% if current_user.is_authenticated %}
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('organization.') %}active{% endif %}"
-                            href="{{ url_for('organization.departments') }}">
-                            <i class="bi bi-diagram-3 me-1"></i>Organization
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('equipment.') %}active{% endif %}"
-                            href="{{ url_for('equipment.hardware_list') }}">
-                            <i class="bi bi-pc-display me-1"></i>Equipment
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('requirements.') %}active{% endif %}"
-                            href="{{ url_for('requirements.select_position') }}">
-                            <i class="bi bi-list-check me-1"></i>Requirements
-                        </a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {% if request.endpoint and request.endpoint.startswith('reports.') %}active{% endif %}"
-                            href="#" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-bar-chart me-1"></i>Reports
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{{ url_for('reports.cost_summary') }}">Cost Summary</a>
-                            </li>
-                            <li><a class="dropdown-item" href="{{ url_for('reports.equipment_report') }}">Equipment
-                                    Report</a></li>
-                        </ul>
-                    </li>
-                    {% if current_user.role.role_name in ('admin', 'it_staff') %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {% if request.endpoint and request.endpoint.startswith('admin.') %}active{% endif %}"
-                            href="#" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-gear me-1"></i>Admin
-                        </a>
-                        <ul class="dropdown-menu">
-                            {% if current_user.role.role_name == 'admin' %}
-                            <li><a class="dropdown-item" href="{{ url_for('admin.manage_users') }}">Manage Users</a>
-                            </li>
-                            {% endif %}
-                            <li><a class="dropdown-item" href="{{ url_for('admin.audit_logs') }}">Audit Logs</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('admin.hr_sync') }}">HR Sync</a></li>
-                        </ul>
-                    </li>
-                    {% endif %}
-                    {% endif %}
-                </ul>
-
-                {# Right-aligned user menu. #}
-                {% if current_user.is_authenticated %}
-                <ul class="navbar-nav">
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
-                            aria-expanded="false">
-                            <i class="bi bi-person-circle me-1"></i>{{ current_user.full_name }}
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><span class="dropdown-item-text text-muted">{{ current_user.role.role_name |
-                                    replace('_', ' ') | title }}</span></li>
-                            <li>
-                                <hr class="dropdown-divider">
-                            </li>
-                            <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">Sign Out</a></li>
-                        </ul>
-                    </li>
-                </ul>
-                {% else %}
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('auth.login_page') }}">
-                            <i class="bi bi-box-arrow-in-right me-1"></i>Sign In
-                        </a>
-                    </li>
-                </ul>
-                {% endif %}
-            </div>
-        </div>
-    </nav>
-
-    <!-- ================================================================= -->
-    <!-- Flash Messages                                                    -->
-    <!-- ================================================================= -->
-    <div class="container-fluid mt-3">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        {% for category, message in messages %}
-        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-        {% endfor %}
-        {% endif %}
-        {% endwith %}
+            <span class="pm-mobile-brand">PositionMatrix</span>
     </div>
 
-    <!-- ================================================================= -->
-    <!-- Page Content                                                      -->
-    <!-- ================================================================= -->
-    <main class="container-fluid mt-3 mb-5">
-        {% block content %}{% endblock %}
-    </main>
+    {# ----- Backdrop for mobile offcanvas ----- #}
+    <div class="pm-sidebar-backdrop" id="sidebarBackdrop"></div>
 
-    <!-- ================================================================= -->
-    <!-- Footer                                                            -->
-    <!-- ================================================================= -->
-    <footer class="bg-light text-muted py-3 mt-auto border-top">
-        <div class="container-fluid text-center">
-            <small>PositionMatrix &mdash; IT Equipment &amp; Software Tracking</small>
+    {# ============================================================= #}
+    {# SIDEBAR NAVIGATION #}
+    {# ============================================================= #}
+    <aside class="pm-sidebar" id="sidebarNav">
+
+        {# -- Brand header -- #}
+        <a href="{{ url_for('main.dashboard') }}" class="pm-sidebar-brand">
+            <div class="pm-sidebar-brand-icon">
+                <i class="bi bi-grid-3x3-gap-fill"></i>
+            </div>
+            <div class="pm-sidebar-brand-text">
+                PositionMatrix
+                <small>IT Equipment Tracking</small>
+            </div>
+        </a>
+
+        {# -- Main navigation links -- #}
+        <div class="pm-sidebar-section">Main</div>
+        <ul class="pm-sidebar-nav">
+            <li>
+                <a class="pm-sidebar-link {% if request.endpoint == 'main.dashboard' %}active{% endif %}"
+                    href="{{ url_for('main.dashboard') }}">
+                    <i class="bi bi-house-door"></i>
+                    Dashboard
+                </a>
+            </li>
+        </ul>
+
+        {% if current_user.is_authenticated %}
+        <div class="pm-sidebar-section">Organization</div>
+        <ul class="pm-sidebar-nav">
+            <li>
+                <a class="pm-sidebar-link {% if request.endpoint and request.endpoint.startswith('organization.') %}active{% endif %}"
+                    href="{{ url_for('organization.departments') }}">
+                    <i class="bi bi-diagram-3"></i>
+                    Departments
+                </a>
+            </li>
+            <li>
+                <a class="pm-sidebar-link {% if request.endpoint and request.endpoint.startswith('equipment.') %}active{% endif %}"
+                    href="{{ url_for('equipment.hardware_list') }}">
+                    <i class="bi bi-cpu"></i>
+                    Equipment Catalog
+                </a>
+            </li>
+            <li>
+                <a class="pm-sidebar-link {% if request.endpoint and request.endpoint.startswith('requirements.') %}active{% endif %}"
+                    href="{{ url_for('requirements.select_position') }}">
+                    <i class="bi bi-list-check"></i>
+                    Requirements
+                </a>
+            </li>
+        </ul>
+
+        <div class="pm-sidebar-section">Reporting</div>
+        <ul class="pm-sidebar-nav">
+            <li>
+                <a class="pm-sidebar-link {% if request.endpoint == 'reports.cost_summary' %}active{% endif %}"
+                    href="{{ url_for('reports.cost_summary') }}">
+                    <i class="bi bi-currency-dollar"></i>
+                    Cost Summary
+                </a>
+            </li>
+            <li>
+                <a class="pm-sidebar-link {% if request.endpoint == 'reports.equipment_report' %}active{% endif %}"
+                    href="{{ url_for('reports.equipment_report') }}">
+                    <i class="bi bi-file-earmark-bar-graph"></i>
+                    Equipment Report
+                </a>
+            </li>
+        </ul>
+
+        {% if current_user.role.role_name in ('admin', 'it_staff') %}
+        <div class="pm-sidebar-section">Administration</div>
+        <ul class="pm-sidebar-nav">
+            {% if current_user.role.role_name == 'admin' %}
+            <li>
+                <a class="pm-sidebar-link {% if request.endpoint == 'admin.manage_users' %}active{% endif %}"
+                    href="{{ url_for('admin.manage_users') }}">
+                    <i class="bi bi-people"></i>
+                    Manage Users
+                </a>
+            </li>
+            {% endif %}
+            <li>
+                <a class="pm-sidebar-link {% if request.endpoint == 'admin.audit_logs' %}active{% endif %}"
+                    href="{{ url_for('admin.audit_logs') }}">
+                    <i class="bi bi-journal-text"></i>
+                    Audit Logs
+                </a>
+            </li>
+            <li>
+                <a class="pm-sidebar-link {% if request.endpoint == 'admin.hr_sync' %}active{% endif %}"
+                    href="{{ url_for('admin.hr_sync') }}">
+                    <i class="bi bi-arrow-repeat"></i>
+                    HR Sync
+                </a>
+            </li>
+        </ul>
+        {% endif %}
+        {% endif %}
+
+        {# -- User info + sign-out at bottom of sidebar -- #}
+        <div class="pm-sidebar-user">
+            {% if current_user.is_authenticated %}
+            <div class="pm-sidebar-user-info">
+                <div class="pm-sidebar-avatar">
+                    {{ current_user.full_name[0] | upper }}
+                </div>
+                <div>
+                    <div class="pm-sidebar-user-name">{{ current_user.full_name }}</div>
+                    <div class="pm-sidebar-user-role">
+                        {{ current_user.role.role_name | replace('_', ' ') | title }}
+                    </div>
+                </div>
+            </div>
+            <a href="{{ url_for('auth.logout') }}" class="pm-sidebar-signout">
+                <i class="bi bi-box-arrow-left"></i>
+                Sign Out
+            </a>
+            {% else %}
+            <a href="{{ url_for('auth.login_page') }}" class="pm-sidebar-link">
+                <i class="bi bi-box-arrow-in-right"></i>
+                Sign In
+            </a>
+            {% endif %}
         </div>
-    </footer>
+
+    </aside>
+
+    {# ============================================================= #}
+    {# MAIN CONTENT AREA #}
+    {# ============================================================= #}
+    <div class="pm-main">
+
+        {# -- Flash messages -- #}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="pm-flash-container mt-3" id="flash-messages">
+            {% for category, message in messages %}
+            <div class="pm-alert pm-alert-{{ category }} alert alert-dismissible fade show" role="alert">
+                {% if category == 'success' %}<i class="bi bi-check-circle me-2"></i>
+                {% elif category == 'danger' %}<i class="bi bi-exclamation-triangle me-2"></i>
+                {% elif category == 'warning' %}<i class="bi bi-exclamation-circle me-2"></i>
+                {% elif category == 'info' %}<i class="bi bi-info-circle me-2"></i>
+                {% endif %}
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        {# -- Page content -- #}
+        <main class="pm-content">
+            {% block content %}{% endblock %}
+        </main>
+
+        {# -- Footer -- #}
+        <footer class="pm-footer">
+            PositionMatrix &mdash; IT Equipment &amp; Software Tracking
+        </footer>
+    </div>
+
+    </div><!-- /.pm-app-layout -->
 
     <!-- Bootstrap 5 JS Bundle (Popper included) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"

@@ -1,13 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Unauthorized — PositionMatrix{% endblock %}
 {% block content %}
-<div class="row justify-content-center mt-5">
-    <div class="col-md-6 text-center">
-        <i class="bi bi-shield-lock display-1 text-warning mb-3"></i>
-        <h1>Access Denied</h1>
-        <p class="text-muted">You do not have permission to access this page.</p>
-        <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary mt-3">
-            <i class="bi bi-house me-1"></i>Return to Dashboard
+<div class="pm-error-page">
+    <div>
+        <div style="font-size: 4rem; color: var(--pm-gray-200); margin-bottom: 1rem;">
+            <i class="bi bi-shield-lock"></i>
+        </div>
+        <h2>Access Denied</h2>
+        <p class="pm-text-muted mb-4" style="max-width: 420px; margin-left: auto; margin-right: auto;">
+            You do not have permission to access this page.
+            Contact your administrator if you need access.
+        </p>
+        <a href="{{ url_for('main.dashboard') }}" class="pm-btn pm-btn-primary">
+            <i class="bi bi-house-door"></i>
+            Return to Dashboard
         </a>
     </div>
 </div>

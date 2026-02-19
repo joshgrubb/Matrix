@@ -3,192 +3,157 @@
 {% block title %}Position Summary — {{ position.position_title }}{% endblock %}
 
 {% block content %}
-<!-- Breadcrumb navigation -->
-<nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item">
-            <a href="{{ url_for('requirements.select_position') }}">Select Position</a>
-        </li>
-        <li class="breadcrumb-item">
-            <a href="{{ url_for('requirements.select_hardware', position_id=position.id) }}">Hardware</a>
-        </li>
-        <li class="breadcrumb-item">
-            <a href="{{ url_for('requirements.select_software', position_id=position.id) }}">Software</a>
-        </li>
-        <li class="breadcrumb-item active" aria-current="page">Summary</li>
-    </ol>
-</nav>
+{# ── Step breadcrumb ── #}
+<div class="pm-breadcrumb">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{{ url_for('requirements.select_position') }}">Select Position</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{{ url_for('requirements.select_hardware', position_id=position.id) }}">Hardware</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{{ url_for('requirements.select_software', position_id=position.id) }}">Software</a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">Summary</li>
+        </ol>
+    </nav>
+</div>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="pm-page-header">
     <div>
         <h1>Position Summary</h1>
-        <p class="text-muted mb-0">
+        <p>
             {{ position.position_code }} — {{ position.position_title }}
             ({{ position.authorized_count }} authorized)
         </p>
     </div>
     <div>
         <a href="{{ url_for('requirements.select_hardware', position_id=position.id) }}"
-           class="btn btn-outline-primary">
+            class="pm-btn pm-btn-secondary pm-btn-sm">
+            <i class="bi bi-pencil"></i>
             Edit Requirements
         </a>
     </div>
 </div>
 
-<!-- Cost summary cards -->
+{# ── Cost summary stat cards ── #}
 <div class="row g-3 mb-4">
     <div class="col-md-4">
-        <div class="card text-center">
-            <div class="card-body">
-                <h6 class="card-subtitle mb-2 text-muted">Hardware Cost</h6>
-                <h3 class="text-primary">${{ "%.2f"|format(cost_summary.total_hardware_cost) }}</h3>
+        <div class="pm-card">
+            <div class="pm-stat-card">
+                <div class="pm-stat-icon pm-stat-icon--blue">
+                    <i class="bi bi-cpu"></i>
+                </div>
+                <div class="pm-stat-value pm-cost">${{ "%.2f"|format(cost_summary.total_hardware_cost) }}</div>
+                <div class="pm-stat-label">Hardware Cost</div>
             </div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card text-center">
-            <div class="card-body">
-                <h6 class="card-subtitle mb-2 text-muted">Software Cost</h6>
-                <h3 class="text-success">${{ "%.2f"|format(cost_summary.total_software_cost) }}</h3>
+        <div class="pm-card">
+            <div class="pm-stat-card">
+                <div class="pm-stat-icon pm-stat-icon--green">
+                    <i class="bi bi-window-stack"></i>
+                </div>
+                <div class="pm-stat-value pm-cost">${{ "%.2f"|format(cost_summary.total_software_cost) }}</div>
+                <div class="pm-stat-label">Software Cost</div>
             </div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card text-center">
-            <div class="card-body">
-                <h6 class="card-subtitle mb-2 text-muted">Total Cost</h6>
-                <h3 class="text-dark">${{ "%.2f"|format(cost_summary.total_cost) }}</h3>
+        <div class="pm-card">
+            <div class="pm-stat-card">
+                <div class="pm-stat-icon pm-stat-icon--amber">
+                    <i class="bi bi-calculator"></i>
+                </div>
+                <div class="pm-stat-value pm-cost">${{ "%.2f"|format(cost_summary.total_cost) }}</div>
+                <div class="pm-stat-label">Total Cost</div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Hardware requirements -->
-<div class="card mb-4">
+{# ── Hardware requirements table ── #}
+<div class="pm-card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">Hardware Requirements</h5>
+        <span><i class="bi bi-cpu me-2"></i>Hardware Requirements</span>
     </div>
     <div class="card-body">
         {% if cost_summary.hardware_lines %}
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Hardware Type</th>
-                    <th class="text-end">Qty / Person</th>
-                    <th class="text-end">Unit Cost</th>
-                    <th class="text-end">Authorized</th>
-                    <th class="text-end">Line Total</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for line in cost_summary.hardware_lines %}
-                <tr>
-                    <td>{{ line.type_name }}</td>
-                    <td class="text-end">{{ line.quantity }}</td>
-                    <td class="text-end">${{ "%.2f"|format(line.unit_cost) }}</td>
-                    <td class="text-end">{{ line.authorized_count }}</td>
-                    <td class="text-end">${{ "%.2f"|format(line.line_total) }}</td>
-                    <td>
-                        <form method="POST"
-                              action="{{ url_for('requirements.remove_hardware', req_id=line.requirement_id) }}"
-                              class="d-inline">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" class="btn btn-sm btn-outline-danger"
-                                    onclick="return confirm('Remove this hardware requirement?');">
-                                Remove
-                            </button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-            <tfoot>
-                <tr class="table-light">
-                    <td colspan="4" class="text-end fw-bold">Hardware Subtotal</td>
-                    <td class="text-end fw-bold">${{ "%.2f"|format(cost_summary.total_hardware_cost) }}</td>
-                    <td></td>
-                </tr>
-            </tfoot>
-        </table>
+        <div class="table-responsive">
+            <table class="table pm-table">
+                <thead>
+                    <tr>
+                        <th>Hardware Type</th>
+                        <th class="text-center">Qty / Person</th>
+                        <th class="text-end">Unit Cost</th>
+                        <th class="text-end">Line Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for line in cost_summary.hardware_lines %}
+                    <tr>
+                        <td style="font-weight: 500;">{{ line.hardware_type_name }}</td>
+                        <td class="text-center">{{ line.quantity }}</td>
+                        <td class="text-end pm-cost">${{ "%.2f"|format(line.unit_cost) }}</td>
+                        <td class="text-end pm-cost">${{ "%.2f"|format(line.line_total) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
         {% else %}
-        <p class="text-muted">No hardware requirements configured.</p>
+        <div class="pm-empty-state" style="padding: 2rem;">
+            <p>No hardware requirements configured.</p>
+        </div>
         {% endif %}
     </div>
 </div>
 
-<!-- Software requirements -->
-<div class="card mb-4">
+{# ── Software requirements table ── #}
+<div class="pm-card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">Software Requirements</h5>
+        <span><i class="bi bi-window-stack me-2"></i>Software Requirements</span>
     </div>
     <div class="card-body">
         {% if cost_summary.software_lines %}
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Software</th>
-                    <th>License Model</th>
-                    <th class="text-end">Qty / Person</th>
-                    <th class="text-end">Cost Basis</th>
-                    <th class="text-end">Line Total</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for line in cost_summary.software_lines %}
-                <tr>
-                    <td>{{ line.software_name }}</td>
-                    <td>
-                        {% if line.license_model == 'per_user' %}
-                        <span class="badge bg-primary">Per User</span>
-                        {% else %}
-                        <span class="badge bg-warning text-dark">Tenant</span>
-                        {% endif %}
-                    </td>
-                    <td class="text-end">{{ line.quantity }}</td>
-                    <td class="text-end">
-                        {% if line.license_model == 'per_user' %}
-                        ${{ "%.2f"|format(line.unit_cost) }}/license
-                        {% else %}
-                        ${{ "%.2f"|format(line.unit_cost) }} (allocated)
-                        {% endif %}
-                    </td>
-                    <td class="text-end">${{ "%.2f"|format(line.line_total) }}</td>
-                    <td>
-                        <form method="POST"
-                              action="{{ url_for('requirements.remove_software', req_id=line.requirement_id) }}"
-                              class="d-inline">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" class="btn btn-sm btn-outline-danger"
-                                    onclick="return confirm('Remove this software requirement?');">
-                                Remove
-                            </button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-            <tfoot>
-                <tr class="table-light">
-                    <td colspan="4" class="text-end fw-bold">Software Subtotal</td>
-                    <td class="text-end fw-bold">${{ "%.2f"|format(cost_summary.total_software_cost) }}</td>
-                    <td></td>
-                </tr>
-            </tfoot>
-        </table>
+        <div class="table-responsive">
+            <table class="table pm-table">
+                <thead>
+                    <tr>
+                        <th>Software Product</th>
+                        <th class="text-center">License</th>
+                        <th class="text-center">Qty</th>
+                        <th class="text-end">Unit Cost</th>
+                        <th class="text-end">Line Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for line in cost_summary.software_lines %}
+                    <tr>
+                        <td style="font-weight: 500;">{{ line.software_name }}</td>
+                        <td class="text-center">
+                            {% if line.license_model == 'per_user' %}
+                            <span class="pm-badge pm-badge-info">Per User</span>
+                            {% else %}
+                            <span class="pm-badge pm-badge-warning">Tenant</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">{{ line.quantity }}</td>
+                        <td class="text-end pm-cost">${{ "%.2f"|format(line.unit_cost) }}</td>
+                        <td class="text-end pm-cost">${{ "%.2f"|format(line.line_total) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
         {% else %}
-        <p class="text-muted">No software requirements configured.</p>
+        <div class="pm-empty-state" style="padding: 2rem;">
+            <p>No software requirements configured.</p>
+        </div>
         {% endif %}
     </div>
-</div>
-
-<div class="d-flex justify-content-between">
-    <a href="{{ url_for('requirements.select_position') }}" class="btn btn-outline-secondary">
-        &larr; Configure Another Position
-    </a>
-    <a href="{{ url_for('reports.cost_summary') }}" class="btn btn-info">
-        View Cost Reports
-    </a>
 </div>
 {% endblock %}

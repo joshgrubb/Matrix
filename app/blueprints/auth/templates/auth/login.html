@@ -1,27 +1,80 @@
-{% extends "base.html" %}
-{% block title %}Sign In — PositionMatrix{% endblock %}
+<!DOCTYPE html>
+<html lang="en">
 
-{% block content %}
-<div class="row justify-content-center mt-5">
-    <div class="col-md-6 col-lg-4">
-        <div class="card shadow">
-            <div class="card-body text-center p-5">
-                <i class="bi bi-pc-display-horizontal display-1 text-primary mb-3"></i>
-                <h2 class="card-title mb-3">PositionMatrix</h2>
-                <p class="text-muted mb-4">
-                    IT Equipment &amp; Software Tracking
-                </p>
-                <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-lg w-100 mb-3">
-                    <i class="bi bi-microsoft me-2"></i>Sign in with Microsoft
-                </a>
-                {% if config.DEBUG %}
-                <hr>
-                <a href="{{ url_for('auth.dev_login') }}" class="btn btn-outline-secondary btn-sm w-100">
-                    <i class="bi bi-code-square me-1"></i>Dev Login (Debug Only)
-                </a>
-                {% endif %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In — PositionMatrix</title>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <!-- PositionMatrix Design System -->
+    <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+</head>
+
+<body>
+    {# Login page uses its own full-screen layout, not the sidebar layout. #}
+    <div class="pm-login-page">
+
+        {# -- Flash messages (positioned above the card) -- #}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div
+            style="position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); z-index: 9999; width: 90%; max-width: 420px;">
+            {% for category, message in messages %}
+            <div class="pm-alert pm-alert-{{ category }} alert alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
+            {% endfor %}
         </div>
+        {% endif %}
+        {% endwith %}
+
+        {# -- Login card -- #}
+        <div class="pm-login-card">
+
+            {# Logo / brand mark #}
+            <div class="pm-login-logo">
+                <i class="bi bi-grid-3x3-gap-fill"></i>
+            </div>
+
+            <h2 style="font-family: var(--pm-font-heading); font-weight: 700; margin-bottom: 0.25rem;">
+                PositionMatrix
+            </h2>
+            <p class="pm-text-muted mb-4" style="font-size: 0.95rem;">
+                IT Equipment &amp; Software Tracking
+            </p>
+
+            {# Primary sign-in button #}
+            <a href="{{ url_for('auth.login') }}" class="pm-btn pm-btn-primary pm-btn-lg pm-btn-block mb-3">
+                <i class="bi bi-microsoft"></i>
+                Sign in with Microsoft
+            </a>
+
+            <p class="pm-text-muted" style="font-size: 0.8rem; margin-bottom: 0;">
+                Use your organization Microsoft account to sign in.
+            </p>
+
+            {# Dev login — only shown in debug mode #}
+            {% if config.DEBUG %}
+            <hr style="margin: 1.5rem 0; border-color: var(--pm-gray-200);">
+            <a href="{{ url_for('auth.dev_login') }}" class="pm-btn pm-btn-secondary pm-btn-sm pm-btn-block">
+                <i class="bi bi-code-square"></i>
+                Dev Login (Debug Only)
+            </a>
+            {% endif %}
+        </div>
+
     </div>
-</div>
-{% endblock %}
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+        crossorigin="anonymous"></script>
+</body>
+
+</html>
