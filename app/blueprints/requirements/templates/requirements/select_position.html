@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Select Position — Requirements{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Configure Position Requirements</h1>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Step 1: Select a Position</h5>
+    </div>
+    <div class="card-body">
+        <p class="text-muted">
+            Choose a department, division, and position to configure
+            hardware and software requirements.
+        </p>
+        <form method="GET" id="position-select-form">
+            <!-- Department dropdown -->
+            <div class="mb-3">
+                <label for="department_id" class="form-label">Department</label>
+                <select name="department_id" id="department_id" class="form-select"
+                        hx-get="{{ url_for('organization.htmx_divisions', department_id=0) }}"
+                        hx-target="#division_id"
+                        hx-swap="innerHTML"
+                        hx-trigger="change"
+                        hx-include="this">
+                    <option value="">— Select Department —</option>
+                    {% for dept in departments %}
+                    <option value="{{ dept.id }}">{{ dept.department_code }} — {{ dept.department_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Division dropdown (populated via HTMX) -->
+            <div class="mb-3">
+                <label for="division_id" class="form-label">Division</label>
+                <select name="division_id" id="division_id" class="form-select"
+                        hx-get="{{ url_for('organization.htmx_positions', division_id=0) }}"
+                        hx-target="#position_id"
+                        hx-swap="innerHTML"
+                        hx-trigger="change"
+                        hx-include="this">
+                    <option value="">— Select Division —</option>
+                </select>
+            </div>
+
+            <!-- Position dropdown (populated via HTMX) -->
+            <div class="mb-3">
+                <label for="position_id" class="form-label">Position</label>
+                <select name="position_id" id="position_id" class="form-select">
+                    <option value="">— Select Position —</option>
+                </select>
+            </div>
+
+            <button type="button" id="btn-next" class="btn btn-primary" onclick="goToHardware()">
+                Next: Select Hardware &rarr;
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+// Fix HTMX URL to use selected department/division IDs.
+document.getElementById('department_id').addEventListener('change', function() {
+    var deptId = this.value;
+    if (deptId) {
+        this.setAttribute('hx-get', '/org/departments/' + deptId + '/divisions/htmx');
+        htmx.process(this);
+    }
+    // Reset downstream dropdowns.
+    document.getElementById('division_id').innerHTML = '<option value="">— Select Division —</option>';
+    document.getElementById('position_id').innerHTML = '<option value="">— Select Position —</option>';
+});
+
+document.getElementById('division_id').addEventListener('change', function() {
+    var divId = this.value;
+    if (divId) {
+        this.setAttribute('hx-get', '/org/divisions/' + divId + '/positions/htmx');
+        htmx.process(this);
+    }
+    document.getElementById('position_id').innerHTML = '<option value="">— Select Position —</option>';
+});
+
+function goToHardware() {
+    var posId = document.getElementById('position_id').value;
+    if (!posId) {
+        alert('Please select a position first.');
+        return;
+    }
+    window.location.href = '{{ url_for("requirements.select_position") }}' + 'position/' + posId + '/hardware';
+}
+</script>
+{% endblock %}

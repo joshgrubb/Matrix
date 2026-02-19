@@ -1,0 +1,290 @@
+"""
+Routes for the requirements blueprint — guided position requirement flow.
+
+Flow: Select Position → Select Hardware → Select Software → Summary.
+
+Restricted to admin, IT staff, and scoped managers.
+"""
+
+from flask import flash, redirect, render_template, request, url_for
+from flask_login import current_user, login_required
+
+from app.blueprints.requirements import bp
+from app.decorators import role_required
+from app.services import (
+    cost_service,
+    equipment_service,
+    organization_service,
+    requirement_service,
+)
+
+
+# =========================================================================
+# Step 1: Select Position
+# =========================================================================
+
+@bp.route("/")
+@login_required
+@role_required("admin", "it_staff", "manager")
+def select_position():
+    """
+    Step 1: Choose a position to configure requirements for.
+
+    Displays department → division → position cascading dropdowns
+    powered by HTMX.
+    """
+    departments = organization_service.get_departments(current_user)
+    return render_template(
+        "requirements/select_position.html",
+        departments=departments,
+    )
+
+
+# =========================================================================
+# Step 2: Select Hardware
+# =========================================================================
+
+@bp.route("/position/<int:position_id>/hardware", methods=["GET", "POST"])
+@login_required
+@role_required("admin", "it_staff", "manager")
+def select_hardware(position_id):
+    """
+    Step 2: Select hardware types for the position.
+
+    GET:  Display current hardware requirements and available types.
+    POST: Save hardware selections and advance to software step.
+    """
+    # Scope check.
+    if not organization_service.user_can_access_position(current_user, position_id):
+        flash("You do not have access to this position.", "warning")
+        return redirect(url_for("requirements.select_position"))
+
+    position = organization_service.get_position_by_id(position_id)
+    if position is None:
+        flash("Position not found.", "warning")
+        return redirect(url_for("requirements.select_position"))
+
+    if request.method == "POST":
+        # Parse submitted hardware selections.
+        items = _parse_hardware_form(request.form)
+
+        requirement_service.set_position_hardware(
+            position_id=position_id,
+            items=items,
+            user_id=current_user.id,
+        )
+        flash("Hardware requirements saved.", "success")
+        return redirect(
+            url_for("requirements.select_software", position_id=position_id)
+        )
+
+    # GET: Load current requirements and available types.
+    current_hw = requirement_service.get_hardware_requirements(position_id)
+    all_hw_types = equipment_service.get_hardware_types()
+
+    # Build a dict of current selections for template pre-population.
+    selected = {
+        req.hardware_type_id: {"quantity": req.quantity, "notes": req.notes}
+        for req in current_hw
+    }
+
+    return render_template(
+        "requirements/select_hardware.html",
+        position=position,
+        hardware_types=all_hw_types,
+        selected=selected,
+    )
+
+
+# =========================================================================
+# Step 3: Select Software
+# =========================================================================
+
+@bp.route("/position/<int:position_id>/software", methods=["GET", "POST"])
+@login_required
+@role_required("admin", "it_staff", "manager")
+def select_software(position_id):
+    """
+    Step 3: Select software products for the position.
+
+    GET:  Display current software requirements and available products.
+    POST: Save software selections and advance to summary.
+    """
+    if not organization_service.user_can_access_position(current_user, position_id):
+        flash("You do not have access to this position.", "warning")
+        return redirect(url_for("requirements.select_position"))
+
+    position = organization_service.get_position_by_id(position_id)
+    if position is None:
+        flash("Position not found.", "warning")
+        return redirect(url_for("requirements.select_position"))
+
+    if request.method == "POST":
+        items = _parse_software_form(request.form)
+
+        requirement_service.set_position_software(
+            position_id=position_id,
+            items=items,
+            user_id=current_user.id,
+        )
+        flash("Software requirements saved.", "success")
+        return redirect(
+            url_for("requirements.position_summary", position_id=position_id)
+        )
+
+    current_sw = requirement_service.get_software_requirements(position_id)
+    all_software = equipment_service.get_software_products()
+
+    selected = {
+        req.software_id: {"quantity": req.quantity, "notes": req.notes}
+        for req in current_sw
+    }
+
+    return render_template(
+        "requirements/select_software.html",
+        position=position,
+        software_products=all_software,
+        selected=selected,
+    )
+
+
+# =========================================================================
+# Step 4: Summary
+# =========================================================================
+
+@bp.route("/position/<int:position_id>/summary")
+@login_required
+@role_required("admin", "it_staff", "manager")
+def position_summary(position_id):
+    """
+    Step 4: Display a summary of all requirements and costs.
+
+    Shows the position's hardware and software requirements with
+    calculated costs.
+    """
+    if not organization_service.user_can_access_position(current_user, position_id):
+        flash("You do not have access to this position.", "warning")
+        return redirect(url_for("requirements.select_position"))
+
+    position = organization_service.get_position_by_id(position_id)
+    if position is None:
+        flash("Position not found.", "warning")
+        return redirect(url_for("requirements.select_position"))
+
+    # Calculate costs using the cost service.
+    cost_summary = cost_service.calculate_position_cost(position_id)
+
+    return render_template(
+        "requirements/position_summary.html",
+        position=position,
+        cost_summary=cost_summary,
+    )
+
+
+# =========================================================================
+# Individual requirement CRUD (HTMX endpoints)
+# =========================================================================
+
+@bp.route("/hardware/<int:req_id>/remove", methods=["POST"])
+@login_required
+@role_required("admin", "it_staff", "manager")
+def remove_hardware(req_id):
+    """Remove a single hardware requirement via HTMX."""
+    try:
+        requirement_service.remove_hardware_requirement(
+            requirement_id=req_id,
+            user_id=current_user.id,
+        )
+        flash("Hardware requirement removed.", "info")
+    except ValueError as exc:
+        flash(str(exc), "danger")
+    # Return to the referring page.
+    return redirect(request.referrer or url_for("requirements.select_position"))
+
+
+@bp.route("/software/<int:req_id>/remove", methods=["POST"])
+@login_required
+@role_required("admin", "it_staff", "manager")
+def remove_software(req_id):
+    """Remove a single software requirement via HTMX."""
+    try:
+        requirement_service.remove_software_requirement(
+            requirement_id=req_id,
+            user_id=current_user.id,
+        )
+        flash("Software requirement removed.", "info")
+    except ValueError as exc:
+        flash(str(exc), "danger")
+    return redirect(request.referrer or url_for("requirements.select_position"))
+
+
+# =========================================================================
+# Form parsing helpers
+# =========================================================================
+
+def _parse_hardware_form(form) -> list[dict]:
+    """
+    Parse hardware selections from the form.
+
+    Form fields follow the pattern:
+        hw_<hardware_type_id>_selected = 'on'
+        hw_<hardware_type_id>_quantity = '2'
+        hw_<hardware_type_id>_notes = 'Optional note'
+    """
+    items = []
+    for key in form:
+        if key.endswith("_selected") and key.startswith("hw_"):
+            hw_type_id_str = key.replace("hw_", "").replace("_selected", "")
+            try:
+                hw_type_id = int(hw_type_id_str)
+            except ValueError:
+                continue
+
+            quantity = form.get(f"hw_{hw_type_id}_quantity", "1")
+            notes = form.get(f"hw_{hw_type_id}_notes", "").strip() or None
+
+            try:
+                quantity = max(1, int(quantity))
+            except ValueError:
+                quantity = 1
+
+            items.append({
+                "hardware_type_id": hw_type_id,
+                "quantity": quantity,
+                "notes": notes,
+            })
+    return items
+
+
+def _parse_software_form(form) -> list[dict]:
+    """
+    Parse software selections from the form.
+
+    Form fields follow the pattern:
+        sw_<software_id>_selected = 'on'
+        sw_<software_id>_quantity = '1'
+        sw_<software_id>_notes = 'Optional note'
+    """
+    items = []
+    for key in form:
+        if key.endswith("_selected") and key.startswith("sw_"):
+            sw_id_str = key.replace("sw_", "").replace("_selected", "")
+            try:
+                sw_id = int(sw_id_str)
+            except ValueError:
+                continue
+
+            quantity = form.get(f"sw_{sw_id}_quantity", "1")
+            notes = form.get(f"sw_{sw_id}_notes", "").strip() or None
+
+            try:
+                quantity = max(1, int(quantity))
+            except ValueError:
+                quantity = 1
+
+            items.append({
+                "software_id": sw_id,
+                "quantity": quantity,
+                "notes": notes,
+            })
+    return items

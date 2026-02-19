@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Select Software — {{ position.position_title }}{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb navigation -->
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+            <a href="{{ url_for('requirements.select_position') }}">Select Position</a>
+        </li>
+        <li class="breadcrumb-item">
+            <a href="{{ url_for('requirements.select_hardware', position_id=position.id) }}">Hardware</a>
+        </li>
+        <li class="breadcrumb-item active" aria-current="page">Software</li>
+        <li class="breadcrumb-item text-muted">Summary</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1>Select Software</h1>
+        <p class="text-muted mb-0">
+            {{ position.position_code }} — {{ position.position_title }}
+            ({{ position.authorized_count }} authorized)
+        </p>
+    </div>
+</div>
+
+<form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Step 3: Select Software Products</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">
+                Check each software product this position requires.
+            </p>
+            {% if software_products %}
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;">Select</th>
+                        <th>Software</th>
+                        <th>License Model</th>
+                        <th>Cost</th>
+                        <th style="width: 100px;">Qty / Person</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sw in software_products %}
+                    {% set is_selected = sw.id in selected %}
+                    <tr>
+                        <td>
+                            <input type="checkbox"
+                                   class="form-check-input"
+                                   name="sw_{{ sw.id }}_selected"
+                                   id="sw_{{ sw.id }}"
+                                   {% if is_selected %}checked{% endif %}>
+                        </td>
+                        <td>
+                            <label for="sw_{{ sw.id }}" class="form-check-label">
+                                {{ sw.software_name }}
+                            </label>
+                            {% if sw.tier %}
+                            <span class="badge bg-secondary ms-1">{{ sw.tier }}</span>
+                            {% endif %}
+                            {% if sw.description %}
+                            <br><small class="text-muted">{{ sw.description }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if sw.license_model == 'per_user' %}
+                            <span class="badge bg-primary">Per User</span>
+                            {% else %}
+                            <span class="badge bg-warning text-dark">Tenant</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if sw.license_model == 'per_user' %}
+                            ${{ "%.2f"|format(sw.cost_per_license) }}/license
+                            {% else %}
+                            ${{ "%.2f"|format(sw.total_cost) }} total
+                            {% endif %}
+                        </td>
+                        <td>
+                            <input type="number"
+                                   class="form-control form-control-sm"
+                                   name="sw_{{ sw.id }}_quantity"
+                                   value="{{ selected[sw.id].quantity if is_selected else 1 }}"
+                                   min="1" max="99">
+                        </td>
+                        <td>
+                            <input type="text"
+                                   class="form-control form-control-sm"
+                                   name="sw_{{ sw.id }}_notes"
+                                   value="{{ selected[sw.id].notes or '' if is_selected else '' }}"
+                                   placeholder="Optional note">
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="alert alert-info">
+                No software products have been configured yet.
+                {% if current_user.has_role('admin', 'it_staff') %}
+                <a href="{{ url_for('equipment.software_create') }}">Add software products</a> first.
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between">
+        <a href="{{ url_for('requirements.select_hardware', position_id=position.id) }}"
+           class="btn btn-outline-secondary">
+            &larr; Back to Hardware
+        </a>
+        <button type="submit" class="btn btn-primary">
+            Save &amp; View Summary &rarr;
+        </button>
+    </div>
+</form>
+{% endblock %}
