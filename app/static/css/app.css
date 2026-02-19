@@ -1,15 +1,67 @@
-/* =============================================================================
-   PositionMatrix — Custom Application Styles
-   Bootstrap 5 is loaded via CDN. Add overrides and custom styles here.
-   ============================================================================= */
+/*
+ * PositionMatrix — Custom Styles
+ *
+ * Bootstrap 5 is loaded via CDN in base.html.
+ * This file contains only project-specific overrides and additions.
+ */
 
-/* Ensure the body fills the viewport for sticky footer behavior. */
-body {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
+/* -- Layout --------------------------------------------------------------- */
+
+/* Ensure the main content area has consistent padding. */
+main.container {
+    padding-top: 1.5rem;
+    padding-bottom: 3rem;
 }
 
-main {
-    flex: 1;
+/* -- Navigation ----------------------------------------------------------- */
+
+/* Slightly tighten the navbar brand spacing. */
+.navbar-brand {
+    font-weight: 600;
+    letter-spacing: 0.025em;
+}
+
+/* -- Tables --------------------------------------------------------------- */
+
+/* Right-align currency columns consistently. */
+.text-end {
+    font-variant-numeric: tabular-nums;
+}
+
+/* -- Cards ---------------------------------------------------------------- */
+
+/* Subtle shadow on cards for depth. */
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+/* -- Flash messages ------------------------------------------------------- */
+
+/* Auto-dismiss animation for flash alerts. */
+#flash-messages .alert {
+    transition: opacity 0.5s ease-out;
+}
+
+/* -- Forms ---------------------------------------------------------------- */
+
+/* Tighten form control sizing inside tables. */
+table .form-control-sm,
+table .form-select-sm {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.85rem;
+}
+
+/* -- Print ---------------------------------------------------------------- */
+
+@media print {
+    .navbar,
+    .btn,
+    #flash-messages {
+        display: none !important;
+    }
+
+    .card {
+        box-shadow: none;
+        border: 1px solid #dee2e6;
+    }
 }
