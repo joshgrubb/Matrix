@@ -1,11 +1,16 @@
 {% extends "base.html" %}
-{% block title %}403 — Forbidden{% endblock %}
+
+{% block title %}403 Forbidden — PositionMatrix{% endblock %}
+
 {% block content %}
-<div class="text-center mt-5">
+<div class="text-center py-5">
     <h1 class="display-1 text-danger">403</h1>
-    <p class="lead">You do not have permission to access this page.</p>
-    <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary mt-3">
-        <i class="bi bi-house me-1"></i>Back to Dashboard
+    <h2>Access Denied</h2>
+    <p class="lead text-muted">
+        You don't have permission to access this page.
+    </p>
+    <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary">
+        Return to Dashboard
     </a>
 </div>
 {% endblock %}

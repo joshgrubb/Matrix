@@ -1,0 +1,10 @@
+{#
+  HTMX partial: Division <option> elements.
+
+  Returned by the organization blueprint's htmx_divisions endpoint.
+  Swapped into a <select> element via HTMX.
+#}
+<option value="">— Select Division —</option>
+{% for div in divisions %}
+<option value="{{ div.id }}">{{ div.division_code }} — {{ div.division_name }}</option>
+{% endfor %}

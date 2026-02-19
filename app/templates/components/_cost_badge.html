@@ -1,0 +1,11 @@
+{#
+  Inline cost display badge.
+
+  Usage: {% include "components/_cost_badge.html" with context %}
+  Expects: cost (Decimal or float), label (optional string)
+#}
+{% if cost is defined %}
+<span class="badge bg-{% if cost > 0 %}primary{% else %}secondary{% endif %} rounded-pill">
+    {% if label %}{{ label }}: {% endif %}${{ "%.2f"|format(cost) }}
+</span>
+{% endif %}
