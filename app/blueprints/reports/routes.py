@@ -21,10 +21,16 @@ def cost_summary():
     Shows a table of all departments the user can access with
     hardware, software, and total cost columns.
     """
-    dept_summaries = cost_service.get_department_cost_breakdown(
-        user=current_user
+    dept_summaries = cost_service.get_department_cost_breakdown(user=current_user)
+    org_summary = cost_service.OrganizationCostSummary(
+        department_count=len(dept_summaries),
+        division_count=sum(d.division_count for d in dept_summaries),
+        position_count=sum(d.position_count for d in dept_summaries),
+        total_authorized=sum(d.total_authorized for d in dept_summaries),
+        hardware_total=sum(d.hardware_total for d in dept_summaries),
+        software_total=sum(d.software_total for d in dept_summaries),
+        grand_total=sum(d.grand_total for d in dept_summaries),
     )
-    org_summary = cost_service.calculate_organization_costs()
 
     return render_template(
         "reports/cost_summary.html",
@@ -76,6 +82,7 @@ def equipment_report():
 # Export endpoints
 # =========================================================================
 
+
 @bp.route("/export/department-costs/<fmt>")
 @login_required
 def export_department_costs(fmt):
@@ -85,9 +92,7 @@ def export_department_costs(fmt):
     Args:
         fmt: Export format — 'csv' or 'xlsx'.
     """
-    dept_summaries = cost_service.get_department_cost_breakdown(
-        user=current_user
-    )
+    dept_summaries = cost_service.get_department_cost_breakdown(user=current_user)
 
     if fmt == "xlsx":
         buffer = export_service.export_department_costs_excel(dept_summaries)

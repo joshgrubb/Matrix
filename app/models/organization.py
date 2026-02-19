@@ -22,7 +22,7 @@ class Department(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     department_code = db.Column(
-        db.String(20), unique=True, nullable=False, index=True
+        db.String(50), unique=True, nullable=False, index=True
     )
     department_name = db.Column(db.String(200), nullable=False)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
@@ -60,7 +60,7 @@ class Division(db.Model):
         index=True,
     )
     division_code = db.Column(
-        db.String(20), unique=True, nullable=False, index=True
+        db.String(50), unique=True, nullable=False, index=True
     )
     division_name = db.Column(db.String(200), nullable=False)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
@@ -103,7 +103,7 @@ class Position(db.Model):
         index=True,
     )
     position_code = db.Column(
-        db.String(20), unique=True, nullable=False, index=True
+        db.String(50), unique=True, nullable=False, index=True
     )
     position_title = db.Column(db.String(200), nullable=False)
     authorized_count = db.Column(db.Integer, nullable=False, default=0)
@@ -152,8 +152,8 @@ class Employee(db.Model):
         nullable=False,
         index=True,
     )
-    employee_number = db.Column(
-        db.String(50), unique=True, nullable=False, index=True
+    neogov_employee_id = db.Column(
+        db.String(100), unique=True, nullable=False, index=True
     )
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
@@ -175,4 +175,4 @@ class Employee(db.Model):
         return f"{self.first_name} {self.last_name}"
 
     def __repr__(self) -> str:
-        return f"<Employee {self.employee_number}: {self.full_name}>"
+        return f"<Employee {self.neogov_employee_id}: {self.full_name}>"

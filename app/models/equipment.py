@@ -24,7 +24,7 @@ class HardwareType(db.Model):
     type_name = db.Column(db.String(100), unique=True, nullable=False)
     description = db.Column(db.String(500), nullable=True)
     estimated_cost = db.Column(
-        db.Numeric(12, 2), nullable=False, default=0
+        db.Numeric(10, 2), nullable=False, default=0
     )
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(
@@ -209,6 +209,11 @@ class SoftwareCoverage(db.Model):
     created_at = db.Column(
         db.DateTime, nullable=False, server_default=db.text("SYSUTCDATETIME()")
     )
+    position_id = db.Column(
+        db.Integer,
+        db.ForeignKey("org.position.id"),
+        nullable=True,
+    )
 
     # -- Relationships -----------------------------------------------------
     software = db.relationship(
@@ -216,6 +221,7 @@ class SoftwareCoverage(db.Model):
     )
     department = db.relationship("Department")
     division = db.relationship("Division")
+    position = db.relationship("Position")
 
     def __repr__(self) -> str:
         return (

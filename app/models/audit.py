@@ -69,15 +69,11 @@ class HRSyncLog(db.Model):
         db.Integer, db.ForeignKey("auth.user.id"), nullable=True
     )
     sync_type = db.Column(db.String(50), nullable=False)
-    # NOTE: These columns are BIT in the DDL (see database_creation.sql).
-    # The DDL defaults them to 0, treating them as flags. If you intend
-    # these to be integer counts in the application, a migration should
-    # change the column types to INT. For now the model matches the DDL.
-    records_processed = db.Column(db.Boolean, nullable=False, default=False)
-    records_created = db.Column(db.Boolean, nullable=False, default=False)
-    records_updated = db.Column(db.Boolean, nullable=False, default=False)
-    records_deactivated = db.Column(db.Boolean, nullable=False, default=False)
-    records_errors = db.Column(db.Boolean, nullable=False, default=False)
+    records_processed = db.Column(db.Integer, nullable=False, default=0)
+    records_created = db.Column(db.Integer, nullable=False, default=0)
+    records_updated = db.Column(db.Integer, nullable=False, default=0)
+    records_deactivated = db.Column(db.Integer, nullable=False, default=0)
+    records_errors = db.Column(db.Integer, nullable=False, default=0)
     status = db.Column(db.String(20), nullable=False)
     error_message = db.Column(db.Text, nullable=True)
     started_at = db.Column(db.DateTime, nullable=False)

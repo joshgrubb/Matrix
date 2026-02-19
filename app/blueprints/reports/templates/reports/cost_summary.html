@@ -37,10 +37,10 @@
                 <tr>
                     <td>{{ dept.department_name }}</td>
                     <td class="text-end">{{ dept.position_count }}</td>
-                    <td class="text-end">{{ dept.authorized_count }}</td>
-                    <td class="text-end">${{ "%.2f"|format(dept.hardware_cost) }}</td>
-                    <td class="text-end">${{ "%.2f"|format(dept.software_cost) }}</td>
-                    <td class="text-end fw-bold">${{ "%.2f"|format(dept.total_cost) }}</td>
+                    <td class="text-end">{{ dept.total_authorized }}</td>
+                    <td class="text-end">${{ "%.2f"|format(dept.hardware_total) }}</td>
+                    <td class="text-end">${{ "%.2f"|format(dept.software_total) }}</td>
+                    <td class="text-end fw-bold">${{ "%.2f"|format(dept.grand_total) }}</td>
                     <td>
                         <a href="{{ url_for('reports.equipment_report', department_id=dept.department_id) }}"
                            class="btn btn-sm btn-outline-primary">
@@ -55,10 +55,10 @@
                 <tr class="table-dark">
                     <td class="fw-bold">Organization Total</td>
                     <td class="text-end">{{ org_summary.position_count }}</td>
-                    <td class="text-end">{{ org_summary.authorized_count }}</td>
-                    <td class="text-end">${{ "%.2f"|format(org_summary.hardware_cost) }}</td>
-                    <td class="text-end">${{ "%.2f"|format(org_summary.software_cost) }}</td>
-                    <td class="text-end fw-bold">${{ "%.2f"|format(org_summary.total_cost) }}</td>
+                    <td class="text-end">{{ org_summary.total_authorized }}</td>
+                    <td class="text-end">${{ "%.2f"|format(org_summary.hardware_total) }}</td>
+                    <td class="text-end">${{ "%.2f"|format(org_summary.software_total) }}</td>
+                    <td class="text-end fw-bold">${{ "%.2f"|format(org_summary.grand_total) }}</td>
                     <td></td>
                 </tr>
             </tfoot>
