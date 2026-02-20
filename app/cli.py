@@ -121,6 +121,27 @@ def db_check_command():
     click.echo("=" * 60)
 
 
+@click.command("hr-sync")
+@with_appcontext
+def hr_sync_command():
+    """Run a full NeoGov HR sync from the command line."""
+    from app.services import hr_sync_service
+
+    click.echo("Starting NeoGov HR sync...")
+    log = hr_sync_service.run_full_sync()
+    click.echo(f"Status: {log.status}")
+    click.echo(
+        f"Processed: {log.records_processed}  "
+        f"Created: {log.records_created}  "
+        f"Updated: {log.records_updated}  "
+        f"Deactivated: {log.records_deactivated}  "
+        f"Errors: {log.records_errors}"
+    )
+    if log.error_message:
+        click.secho(f"Error: {log.error_message}", fg="red")
+
+
 def register_commands(app):
     """Register all custom CLI commands with the Flask application."""
     app.cli.add_command(db_check_command)
+    app.cli.add_command(hr_sync_command)

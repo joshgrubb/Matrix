@@ -57,6 +57,14 @@ class BaseConfig:
         "NEOGOV_API_BASE_URL", "https://api.neogov.com/v1"
     )
     NEOGOV_API_KEY = os.environ.get("NEOGOV_API_KEY", "")
+    # Department codes to exclude from sync (e.g., internal-only departments).
+    NEOGOV_EXCLUDED_DEPARTMENTS: list[str] = [
+        dept.strip()
+        for dept in os.environ.get(
+            "NEOGOV_EXCLUDED_DEPARTMENTS", "ADMINISTRATION"
+        ).split(",")
+        if dept.strip()
+    ]
 
     # -- Logging -----------------------------------------------------------
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
