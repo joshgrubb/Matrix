@@ -7,11 +7,11 @@
     <h1>Position Equipment Report</h1>
     <div>
         <a href="{{ url_for('reports.export_position_costs', fmt='csv', department_id=selected_department_id, division_id=selected_division_id) }}"
-           class="btn btn-outline-secondary btn-sm me-1">
+            class="btn btn-outline-secondary btn-sm me-1">
             Export CSV
         </a>
         <a href="{{ url_for('reports.export_position_costs', fmt='xlsx', department_id=selected_department_id, division_id=selected_division_id) }}"
-           class="btn btn-outline-success btn-sm">
+            class="btn btn-outline-success btn-sm">
             Export Excel
         </a>
     </div>
@@ -26,8 +26,7 @@
                 <select name="department_id" id="department_id" class="form-select" onchange="this.form.submit()">
                     <option value="">All Departments</option>
                     {% for dept in departments %}
-                    <option value="{{ dept.id }}"
-                            {% if selected_department_id == dept.id %}selected{% endif %}>
+                    <option value="{{ dept.id }}" {% if selected_department_id==dept.id %}selected{% endif %}>
                         {{ dept.department_name }}
                     </option>
                     {% endfor %}
@@ -68,12 +67,16 @@
                         <br><small class="text-muted">{{ summary.position_code }}</small>
                     </td>
                     <td class="text-end">{{ summary.authorized_count }}</td>
-                    <td class="text-end">${{ "%.2f"|format(summary.total_hardware_cost) }}</td>
-                    <td class="text-end">${{ "%.2f"|format(summary.total_software_cost) }}</td>
-                    <td class="text-end fw-bold">${{ "%.2f"|format(summary.total_cost) }}</td>
+                    {# FIX 1.1: Changed total_hardware_cost → hardware_total, #}
+                    {# total_software_cost → software_total, #}
+                    {# total_cost → grand_total to match #}
+                    {# PositionCostSummary dataclass in cost_service.py #}
+                    <td class="text-end">${{ "%.2f"|format(summary.hardware_total) }}</td>
+                    <td class="text-end">${{ "%.2f"|format(summary.software_total) }}</td>
+                    <td class="text-end fw-bold">${{ "%.2f"|format(summary.grand_total) }}</td>
                     <td>
                         <a href="{{ url_for('requirements.position_summary', position_id=summary.position_id) }}"
-                           class="btn btn-sm btn-outline-primary">
+                            class="btn btn-sm btn-outline-primary">
                             Detail
                         </a>
                     </td>

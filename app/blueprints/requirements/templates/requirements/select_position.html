@@ -73,11 +73,26 @@
 </div>
 
 <script>
-    /* Fix HTMX URL to use the selected department/division IDs. */
+    /*
+     * FIX 1.2: Corrected HTMX URL paths for cascading dropdowns.
+     *
+     * The HTMX partial endpoints are registered on the organization
+     * blueprint at:
+     *   /org/htmx/divisions/<department_id>
+     *   /org/htmx/positions/<division_id>
+     *
+     * The previous JavaScript was building URLs like:
+     *   /org/departments/<id>/divisions/htmx   (WRONG)
+     *   /org/divisions/<id>/positions/htmx      (WRONG)
+     *
+     * This caused 404 responses so the Division and Position dropdowns
+     * never populated.
+     */
     document.getElementById('department_id').addEventListener('change', function () {
         var deptId = this.value;
         if (deptId) {
-            this.setAttribute('hx-get', '/org/departments/' + deptId + '/divisions/htmx');
+            /* Build the correct URL matching the Flask route. */
+            this.setAttribute('hx-get', '/org/htmx/divisions/' + deptId);
             htmx.process(this);
         }
         /* Reset downstream dropdowns. */
@@ -88,7 +103,8 @@
     document.getElementById('division_id').addEventListener('change', function () {
         var divId = this.value;
         if (divId) {
-            this.setAttribute('hx-get', '/org/divisions/' + divId + '/positions/htmx');
+            /* Build the correct URL matching the Flask route. */
+            this.setAttribute('hx-get', '/org/htmx/positions/' + divId);
             htmx.process(this);
         }
         document.getElementById('position_id').innerHTML = '<option value="">— Select Position —</option>';

@@ -39,6 +39,9 @@
 </div>
 
 {# ── Cost summary stat cards ── #}
+{# FIX 1.1: Changed total_hardware_cost → hardware_total, #}
+{# total_software_cost → software_total, total_cost → grand_total #}
+{# to match PositionCostSummary dataclass in cost_service.py #}
 <div class="row g-3 mb-4">
     <div class="col-md-4">
         <div class="pm-card">
@@ -46,7 +49,7 @@
                 <div class="pm-stat-icon pm-stat-icon--blue">
                     <i class="bi bi-cpu"></i>
                 </div>
-                <div class="pm-stat-value pm-cost">${{ "%.2f"|format(cost_summary.total_hardware_cost) }}</div>
+                <div class="pm-stat-value pm-cost">${{ "%.2f"|format(cost_summary.hardware_total) }}</div>
                 <div class="pm-stat-label">Hardware Cost</div>
             </div>
         </div>
@@ -57,7 +60,7 @@
                 <div class="pm-stat-icon pm-stat-icon--green">
                     <i class="bi bi-window-stack"></i>
                 </div>
-                <div class="pm-stat-value pm-cost">${{ "%.2f"|format(cost_summary.total_software_cost) }}</div>
+                <div class="pm-stat-value pm-cost">${{ "%.2f"|format(cost_summary.software_total) }}</div>
                 <div class="pm-stat-label">Software Cost</div>
             </div>
         </div>
@@ -68,7 +71,7 @@
                 <div class="pm-stat-icon pm-stat-icon--amber">
                     <i class="bi bi-calculator"></i>
                 </div>
-                <div class="pm-stat-value pm-cost">${{ "%.2f"|format(cost_summary.total_cost) }}</div>
+                <div class="pm-stat-value pm-cost">${{ "%.2f"|format(cost_summary.grand_total) }}</div>
                 <div class="pm-stat-label">Total Cost</div>
             </div>
         </div>
@@ -123,8 +126,8 @@
             <table class="table pm-table">
                 <thead>
                     <tr>
-                        <th>Software Product</th>
-                        <th class="text-center">License</th>
+                        <th>Software</th>
+                        <th class="text-center">License Model</th>
                         <th class="text-center">Qty</th>
                         <th class="text-end">Unit Cost</th>
                         <th class="text-end">Line Total</th>
@@ -135,11 +138,10 @@
                     <tr>
                         <td style="font-weight: 500;">{{ line.software_name }}</td>
                         <td class="text-center">
-                            {% if line.license_model == 'per_user' %}
-                            <span class="pm-badge pm-badge-info">Per User</span>
-                            {% else %}
-                            <span class="pm-badge pm-badge-warning">Tenant</span>
-                            {% endif %}
+                            <span
+                                class="pm-badge {{ 'pm-badge-info' if line.license_model == 'per_user' else 'pm-badge-secondary' }}">
+                                {{ line.license_model | replace('_', ' ') | title }}
+                            </span>
                         </td>
                         <td class="text-center">{{ line.quantity }}</td>
                         <td class="text-end pm-cost">${{ "%.2f"|format(line.unit_cost) }}</td>
