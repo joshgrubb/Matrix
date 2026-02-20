@@ -24,13 +24,16 @@
                 <form method="GET" id="position-select-form">
 
                     {# -- Department dropdown -- #}
+                    {# NOTE: No hx-* attributes here. JavaScript below drives the
+                    HTMX requests via htmx.ajax() so the correct ID is always
+                    included in the URL path. This avoids the race condition
+                    where HTMX fired the request with the stale placeholder
+                    URL (department_id=0) before JS could update it. #}
                     <div class="mb-3">
                         <label for="department_id" class="pm-form-label">
                             Department <span class="pm-required">*</span>
                         </label>
-                        <select name="department_id" id="department_id" class="form-select"
-                            hx-get="{{ url_for('organization.htmx_divisions', department_id=0) }}"
-                            hx-target="#division_id" hx-swap="innerHTML" hx-trigger="change" hx-include="this">
+                        <select name="department_id" id="department_id" class="form-select">
                             <option value="">— Select Department —</option>
                             {% for dept in departments %}
                             <option value="{{ dept.id }}">
@@ -45,9 +48,7 @@
                         <label for="division_id" class="pm-form-label">
                             Division <span class="pm-required">*</span>
                         </label>
-                        <select name="division_id" id="division_id" class="form-select"
-                            hx-get="{{ url_for('organization.htmx_positions', division_id=0) }}"
-                            hx-target="#position_id" hx-swap="innerHTML" hx-trigger="change" hx-include="this">
+                        <select name="division_id" id="division_id" class="form-select">
                             <option value="">— Select Division —</option>
                         </select>
                     </div>
@@ -73,41 +74,41 @@
 </div>
 
 <script>
-    /*
-     * FIX 1.2: Corrected HTMX URL paths for cascading dropdowns.
-     *
-     * The HTMX partial endpoints are registered on the organization
-     * blueprint at:
-     *   /org/htmx/divisions/<department_id>
-     *   /org/htmx/positions/<division_id>
-     *
-     * The previous JavaScript was building URLs like:
-     *   /org/departments/<id>/divisions/htmx   (WRONG)
-     *   /org/divisions/<id>/positions/htmx      (WRONG)
-     *
-     * This caused 404 responses so the Division and Position dropdowns
-     * never populated.
-     */
+
+    /* -- Department → Division cascade -- */
     document.getElementById('department_id').addEventListener('change', function () {
         var deptId = this.value;
+
+        /* Always reset downstream dropdowns when department changes. */
+        document.getElementById('division_id').innerHTML =
+            '<option value="">— Select Division —</option>';
+        document.getElementById('position_id').innerHTML =
+            '<option value="">— Select Position —</option>';
+
         if (deptId) {
-            /* Build the correct URL matching the Flask route. */
-            this.setAttribute('hx-get', '/org/htmx/divisions/' + deptId);
-            htmx.process(this);
+            /* Fetch division options and swap them into the division select. */
+            htmx.ajax('GET', '/org/htmx/divisions/' + deptId, {
+                target: '#division_id',
+                swap: 'innerHTML'
+            });
         }
-        /* Reset downstream dropdowns. */
-        document.getElementById('division_id').innerHTML = '<option value="">— Select Division —</option>';
-        document.getElementById('position_id').innerHTML = '<option value="">— Select Position —</option>';
     });
 
+    /* -- Division → Position cascade -- */
     document.getElementById('division_id').addEventListener('change', function () {
         var divId = this.value;
+
+        /* Always reset the position dropdown when division changes. */
+        document.getElementById('position_id').innerHTML =
+            '<option value="">— Select Position —</option>';
+
         if (divId) {
-            /* Build the correct URL matching the Flask route. */
-            this.setAttribute('hx-get', '/org/htmx/positions/' + divId);
-            htmx.process(this);
+            /* Fetch position options and swap them into the position select. */
+            htmx.ajax('GET', '/org/htmx/positions/' + divId, {
+                target: '#position_id',
+                swap: 'innerHTML'
+            });
         }
-        document.getElementById('position_id').innerHTML = '<option value="">— Select Position —</option>';
     });
 
     /**
