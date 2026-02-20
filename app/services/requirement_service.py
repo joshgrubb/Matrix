@@ -21,11 +21,11 @@ logger = logging.getLogger(__name__)
 # Position Hardware Requirements
 # =========================================================================
 
+
 def get_hardware_requirements(position_id: int) -> list[PositionHardware]:
     """Return all hardware requirements for a position, with related types."""
     return (
-        PositionHardware.query
-        .filter_by(position_id=position_id)
+        PositionHardware.query.filter_by(position_id=position_id)
         .order_by(PositionHardware.id)
         .all()
     )
@@ -206,11 +206,11 @@ def remove_hardware_requirement(
 # Position Software Requirements
 # =========================================================================
 
+
 def get_software_requirements(position_id: int) -> list[PositionSoftware]:
     """Return all software requirements for a position."""
     return (
-        PositionSoftware.query
-        .filter_by(position_id=position_id)
+        PositionSoftware.query.filter_by(position_id=position_id)
         .order_by(PositionSoftware.id)
         .all()
     )
@@ -373,6 +373,7 @@ def remove_software_requirement(
 # Bulk operations (for the guided selection flow)
 # =========================================================================
 
+
 def set_position_hardware(
     position_id: int,
     items: list[dict],
@@ -390,50 +391,78 @@ def set_position_hardware(
     Returns:
         The new list of PositionHardware records.
     """
-    # Remove existing requirements.
-    existing = get_hardware_requirements(position_id)
-    for req in existing:
-        _record_requirement_history(
-            position_id=position_id,
-            item_type="hardware",
-            item_id=req.hardware_type_id,
-            action_type="REMOVED",
-            quantity=req.quantity,
-            user_id=user_id,
-        )
-    PositionHardware.query.filter_by(position_id=position_id).delete()
+    try:
+        # Record history for existing requirements being removed.
+        existing = get_hardware_requirements(position_id)
+        for req in existing:
+            _record_requirement_history(
+                position_id=position_id,
+                item_type="hardware",
+                item_id=req.hardware_type_id,
+                action_type="REMOVED",
+                quantity=req.quantity,
+                user_id=user_id,
+            )
 
-    # Add new requirements.
-    new_reqs = []
-    for item in items:
-        req = PositionHardware(
-            position_id=position_id,
-            hardware_type_id=item["hardware_type_id"],
-            quantity=item.get("quantity", 1),
-            notes=item.get("notes"),
+        # FIX: Use synchronize_session="fetch" so SQLAlchemy correctly
+        # updates the identity map after the bulk DELETE.  The default
+        # "evaluate" strategy can leave stale objects in the session
+        # that interfere with subsequent flush operations on SQL Server.
+        PositionHardware.query.filter_by(position_id=position_id).delete(
+            synchronize_session="fetch"
         )
-        db.session.add(req)
+
+        # Flush the delete so the unique constraint is satisfied
+        # before inserting new rows with potentially the same
+        # (position_id, hardware_type_id) pairs.
         db.session.flush()
 
-        _record_requirement_history(
-            position_id=position_id,
-            item_type="hardware",
-            item_id=item["hardware_type_id"],
-            action_type="ADDED",
-            quantity=item.get("quantity", 1),
-            user_id=user_id,
-        )
-        new_reqs.append(req)
+        # Add new requirements.
+        new_reqs = []
+        for item in items:
+            req = PositionHardware(
+                position_id=position_id,
+                hardware_type_id=item["hardware_type_id"],
+                quantity=item.get("quantity", 1),
+                notes=item.get("notes"),
+            )
+            db.session.add(req)
+            db.session.flush()
 
-    audit_service.log_change(
-        user_id=user_id,
-        action_type="UPDATE",
-        entity_type="equip.position_hardware_bulk",
-        entity_id=position_id,
-        new_value={"items": items},
-    )
-    db.session.commit()
-    return new_reqs
+            _record_requirement_history(
+                position_id=position_id,
+                item_type="hardware",
+                item_id=item["hardware_type_id"],
+                action_type="ADDED",
+                quantity=item.get("quantity", 1),
+                user_id=user_id,
+            )
+            new_reqs.append(req)
+
+        audit_service.log_change(
+            user_id=user_id,
+            action_type="UPDATE",
+            entity_type="equip.position_hardware_bulk",
+            entity_id=position_id,
+            new_value={"items": items},
+        )
+        db.session.commit()
+
+        logger.info(
+            "Replaced hardware requirements for position %d: %d items",
+            position_id,
+            len(new_reqs),
+        )
+        return new_reqs
+
+    except Exception:
+        # Roll back so the session is usable for the error response.
+        db.session.rollback()
+        logger.exception(
+            "Failed to save hardware requirements for position %d",
+            position_id,
+        )
+        raise
 
 
 def set_position_software(
@@ -453,53 +482,82 @@ def set_position_software(
     Returns:
         The new list of PositionSoftware records.
     """
-    existing = get_software_requirements(position_id)
-    for req in existing:
-        _record_requirement_history(
-            position_id=position_id,
-            item_type="software",
-            item_id=req.software_id,
-            action_type="REMOVED",
-            quantity=req.quantity,
-            user_id=user_id,
-        )
-    PositionSoftware.query.filter_by(position_id=position_id).delete()
+    try:
+        # Record history for existing requirements being removed.
+        existing = get_software_requirements(position_id)
+        for req in existing:
+            _record_requirement_history(
+                position_id=position_id,
+                item_type="software",
+                item_id=req.software_id,
+                action_type="REMOVED",
+                quantity=req.quantity,
+                user_id=user_id,
+            )
 
-    new_reqs = []
-    for item in items:
-        req = PositionSoftware(
-            position_id=position_id,
-            software_id=item["software_id"],
-            quantity=item.get("quantity", 1),
-            notes=item.get("notes"),
+        # FIX: Use synchronize_session="fetch" so SQLAlchemy correctly
+        # updates the identity map after the bulk DELETE.
+        PositionSoftware.query.filter_by(position_id=position_id).delete(
+            synchronize_session="fetch"
         )
-        db.session.add(req)
+
+        # Flush the delete so the unique constraint is satisfied
+        # before inserting new rows with potentially the same
+        # (position_id, software_id) pairs.
         db.session.flush()
 
-        _record_requirement_history(
-            position_id=position_id,
-            item_type="software",
-            item_id=item["software_id"],
-            action_type="ADDED",
-            quantity=item.get("quantity", 1),
-            user_id=user_id,
-        )
-        new_reqs.append(req)
+        # Add new requirements.
+        new_reqs = []
+        for item in items:
+            req = PositionSoftware(
+                position_id=position_id,
+                software_id=item["software_id"],
+                quantity=item.get("quantity", 1),
+                notes=item.get("notes"),
+            )
+            db.session.add(req)
+            db.session.flush()
 
-    audit_service.log_change(
-        user_id=user_id,
-        action_type="UPDATE",
-        entity_type="equip.position_software_bulk",
-        entity_id=position_id,
-        new_value={"items": items},
-    )
-    db.session.commit()
-    return new_reqs
+            _record_requirement_history(
+                position_id=position_id,
+                item_type="software",
+                item_id=item["software_id"],
+                action_type="ADDED",
+                quantity=item.get("quantity", 1),
+                user_id=user_id,
+            )
+            new_reqs.append(req)
+
+        audit_service.log_change(
+            user_id=user_id,
+            action_type="UPDATE",
+            entity_type="equip.position_software_bulk",
+            entity_id=position_id,
+            new_value={"items": items},
+        )
+        db.session.commit()
+
+        logger.info(
+            "Replaced software requirements for position %d: %d items",
+            position_id,
+            len(new_reqs),
+        )
+        return new_reqs
+
+    except Exception:
+        # Roll back so the session is usable for the error response.
+        db.session.rollback()
+        logger.exception(
+            "Failed to save software requirements for position %d",
+            position_id,
+        )
+        raise
 
 
 # =========================================================================
 # Requirement History
 # =========================================================================
+
 
 def _record_requirement_history(
     position_id: int,

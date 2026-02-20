@@ -1,0 +1,484 @@
+{% extends "base.html" %}
+
+{% block title %}Edit User: {{ user.full_name }} — Admin{% endblock %}
+
+{% block content %}
+<div class="pm-page-header">
+    <div>
+        <h1><i class="bi bi-person-gear me-2"></i>Edit User</h1>
+        <p>Manage role and organizational scope for {{ user.full_name }}.</p>
+    </div>
+    <div>
+        <a href="{{ url_for('admin.manage_users') }}" class="pm-btn pm-btn-secondary pm-btn-sm">
+            <i class="bi bi-arrow-left"></i>
+            Back to Users
+        </a>
+    </div>
+</div>
+
+{# ── User info card (read-only summary) ── #}
+<div class="pm-card mb-4">
+    <div class="card-header">
+        <i class="bi bi-person me-2"></i>User Details
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="pm-form-label">Name</div>
+                <div>{{ user.full_name }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="pm-form-label">Email</div>
+                <div class="pm-text-muted">{{ user.email }}</div>
+            </div>
+            <div class="col-md-2">
+                <div class="pm-form-label">Status</div>
+                <div>
+                    {% if user.is_active %}
+                    <span class="pm-badge pm-badge-success">Active</span>
+                    {% else %}
+                    <span class="pm-badge pm-badge-neutral">Inactive</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="pm-form-label">Last Login</div>
+                <div class="pm-text-muted">
+                    {{ user.last_login.strftime('%Y-%m-%d %H:%M') if user.last_login else '—' }}
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="pm-form-label">Entra ID</div>
+                <div class="pm-text-muted" style="font-size: 0.82rem; word-break: break-all;">
+                    {{ user.entra_object_id or '—' }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+
+    {# ── Role card ── #}
+    <div class="col-lg-4">
+        <div class="pm-card">
+            <div class="card-header">
+                <i class="bi bi-shield-lock me-2"></i>Role
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('admin.update_user_role', user_id=user.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <div class="mb-3">
+                        <label for="role_name" class="pm-form-label">Application Role</label>
+                        <select name="role_name" id="role_name" class="form-select">
+                            {% for role in roles %}
+                            <option value="{{ role.role_name }}" {% if user.role.role_name==role.role_name %}selected{%
+                                endif %}>
+                                {{ role.role_name | replace('_', ' ') | title }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="pm-form-hint">
+                            Determines what actions the user can perform.
+                        </div>
+                    </div>
+
+                    <button type="submit" class="pm-btn pm-btn-primary pm-btn-sm">
+                        <i class="bi bi-check-lg"></i>
+                        Update Role
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        {# ── Current scope summary (read-only) ── #}
+        <div class="pm-card mt-4">
+            <div class="card-header">
+                <i class="bi bi-eye me-2"></i>Current Scope
+            </div>
+            <div class="card-body">
+                {% if current_scope_type == 'organization' %}
+                <span class="pm-badge pm-badge-info">Organization-wide</span>
+                <p class="pm-text-muted mt-2 mb-0" style="font-size: 0.85rem;">
+                    This user can see all departments, divisions, and positions.
+                </p>
+                {% elif current_scope_type == 'department' %}
+                <span class="pm-badge pm-badge-success">Department</span>
+                <ul class="mt-2 mb-0" style="font-size: 0.85rem; padding-left: 1.25rem;">
+                    {% for scope in user.scopes if scope.scope_type == 'department' %}
+                    <li>{{ scope.department.department_name if scope.department else 'Unknown' }}</li>
+                    {% endfor %}
+                </ul>
+                {% elif current_scope_type == 'division' %}
+                <span class="pm-badge pm-badge-warning">Division</span>
+                <ul class="mt-2 mb-0" style="font-size: 0.85rem; padding-left: 1.25rem;">
+                    {% for scope in user.scopes if scope.scope_type == 'division' %}
+                    <li>
+                        {{ scope.division.division_name if scope.division else 'Unknown' }}
+                        <span class="pm-text-muted">
+                            ({{ scope.division.department.department_name if scope.division and
+                            scope.division.department else '?' }})
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <span class="pm-badge pm-badge-danger">No Scope</span>
+                <p class="pm-text-muted mt-2 mb-0" style="font-size: 0.85rem;">
+                    This user has no scopes assigned and cannot see any organizational data.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# ── Scope editor card ── #}
+    <div class="col-lg-8">
+        <div class="pm-card">
+            <div class="card-header">
+                <i class="bi bi-diagram-3 me-2"></i>Edit Organizational Scope
+            </div>
+            <div class="card-body">
+                <p class="pm-text-muted mb-3" style="font-size: 0.88rem;">
+                    Scope controls which departments, divisions, and positions a user can
+                    see and interact with. Changing the scope below will <strong>replace</strong>
+                    all existing scopes for this user.
+                </p>
+
+                <form method="POST" action="{{ url_for('admin.update_user_scopes', user_id=user.id) }}" id="scope-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    {# ── Scope type selector (radio buttons) ── #}
+                    <div class="mb-4">
+                        <label class="pm-form-label d-block mb-2">Scope Type</label>
+
+                        <div class="d-flex flex-wrap gap-3">
+                            {# Organization #}
+                            <label class="pm-scope-radio">
+                                <input type="radio" name="scope_type" value="organization" {% if
+                                    current_scope_type=='organization' %}checked{% endif %}
+                                    onchange="toggleScopePanel(this.value)">
+                                <span class="pm-scope-radio-label">
+                                    <i class="bi bi-building"></i>
+                                    Organization-wide
+                                </span>
+                            </label>
+
+                            {# Department #}
+                            <label class="pm-scope-radio">
+                                <input type="radio" name="scope_type" value="department" {% if
+                                    current_scope_type=='department' %}checked{% endif %}
+                                    onchange="toggleScopePanel(this.value)">
+                                <span class="pm-scope-radio-label">
+                                    <i class="bi bi-collection"></i>
+                                    Department(s)
+                                </span>
+                            </label>
+
+                            {# Division #}
+                            <label class="pm-scope-radio">
+                                <input type="radio" name="scope_type" value="division" {% if
+                                    current_scope_type=='division' %}checked{% endif %}
+                                    onchange="toggleScopePanel(this.value)">
+                                <span class="pm-scope-radio-label">
+                                    <i class="bi bi-list-nested"></i>
+                                    Division(s)
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+
+                    {# ── Organization panel ── #}
+                    <div id="panel-organization" class="pm-scope-panel"
+                        style="display: {{ 'block' if current_scope_type == 'organization' else 'none' }};">
+                        <div class="pm-scope-panel-inner">
+                            <i class="bi bi-info-circle me-1 text-primary"></i>
+                            User will have full visibility across the entire organization — all
+                            departments, divisions, and positions.
+                        </div>
+                    </div>
+
+                    {# ── Department panel ── #}
+                    <div id="panel-department" class="pm-scope-panel"
+                        style="display: {{ 'block' if current_scope_type == 'department' else 'none' }};">
+                        <label class="pm-form-label d-block mb-2">
+                            Select Department(s)
+                            <span class="pm-form-hint d-inline">(check one or more)</span>
+                        </label>
+
+                        {% if departments %}
+                        <div class="pm-checkbox-grid">
+                            {% for dept in departments %}
+                            <label class="pm-checkbox-card">
+                                <input type="checkbox" name="department_ids" value="{{ dept.id }}" {% if dept.id in
+                                    current_dept_ids %}checked{% endif %}>
+                                <span class="pm-checkbox-card-label">
+                                    <strong>{{ dept.department_code }}</strong>
+                                    <span>{{ dept.department_name }}</span>
+                                </span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <p class="pm-text-muted">No departments found. Run the HR sync first.</p>
+                        {% endif %}
+                    </div>
+
+                    {# ── Division panel ── #}
+                    <div id="panel-division" class="pm-scope-panel"
+                        style="display: {{ 'block' if current_scope_type == 'division' else 'none' }};">
+
+                        <div class="mb-3">
+                            <label for="div-dept-filter" class="pm-form-label">
+                                Filter by Department
+                            </label>
+                            <select id="div-dept-filter" class="form-select"
+                                onchange="loadDivisionCheckboxes(this.value)">
+                                <option value="">— All Departments —</option>
+                                {% for dept in departments %}
+                                <option value="{{ dept.id }}">
+                                    {{ dept.department_code }} — {{ dept.department_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div class="pm-form-hint">
+                                Choose a department to filter the divisions below, or leave blank
+                                to show all.
+                            </div>
+                        </div>
+
+                        <label class="pm-form-label d-block mb-2">
+                            Select Division(s)
+                            <span class="pm-form-hint d-inline">(check one or more)</span>
+                        </label>
+
+                        <div id="division-checkboxes">
+                            {# Default: show all divisions (no filter). #}
+                            {% if divisions %}
+                            <div class="pm-checkbox-grid">
+                                {% for div in divisions %}
+                                <label class="pm-checkbox-card">
+                                    <input type="checkbox" name="division_ids" value="{{ div.id }}" {% if div.id in
+                                        current_div_ids %}checked{% endif %}>
+                                    <span class="pm-checkbox-card-label">
+                                        <strong>{{ div.division_code }}</strong>
+                                        <span>{{ div.division_name }}</span>
+                                        <small class="pm-text-muted">{{ div.department.department_name }}</small>
+                                    </span>
+                                </label>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p class="pm-text-muted">No divisions found. Run the HR sync first.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {# ── Submit ── #}
+                    <div class="mt-4 d-flex gap-2 align-items-center">
+                        <button type="submit" class="pm-btn pm-btn-primary">
+                            <i class="bi bi-check-lg"></i>
+                            Save Scope
+                        </button>
+                        <span class="pm-text-muted" style="font-size: 0.82rem;">
+                            This will replace all existing scopes for {{ user.full_name }}.
+                        </span>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {# ── Danger zone ── #}
+        <div class="pm-card mt-4">
+            <div class="card-header" style="background: var(--pm-danger-bg); color: var(--pm-danger);">
+                <i class="bi bi-exclamation-triangle me-2"></i>Danger Zone
+            </div>
+            <div class="card-body d-flex align-items-center justify-content-between">
+                {% if user.is_active %}
+                <div>
+                    <strong>Deactivate User</strong>
+                    <p class="pm-text-muted mb-0" style="font-size: 0.85rem;">
+                        The user will lose access to PositionMatrix immediately.
+                    </p>
+                </div>
+                <form method="POST" action="{{ url_for('admin.deactivate_user', user_id=user.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="pm-btn pm-btn-danger pm-btn-sm"
+                        onclick="return confirm('Deactivate {{ user.full_name }}? They will lose all access.')">
+                        <i class="bi bi-person-x"></i>
+                        Deactivate
+                    </button>
+                </form>
+                {% else %}
+                <div>
+                    <strong>Reactivate User</strong>
+                    <p class="pm-text-muted mb-0" style="font-size: 0.85rem;">
+                        Re-enable access for this previously deactivated user.
+                    </p>
+                </div>
+                <form method="POST" action="{{ url_for('admin.reactivate_user', user_id=user.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="pm-btn pm-btn-success pm-btn-sm">
+                        <i class="bi bi-person-check"></i>
+                        Reactivate
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+</div>
+
+{# ── Page-specific styles ── #}
+<style>
+    /* -- Scope type radio cards -- */
+    .pm-scope-radio {
+        display: inline-flex;
+        cursor: pointer;
+    }
+
+    .pm-scope-radio input[type="radio"] {
+        display: none;
+    }
+
+    .pm-scope-radio-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.5rem 1rem;
+        border: 2px solid var(--pm-gray-200);
+        border-radius: var(--pm-radius-sm);
+        font-size: 0.88rem;
+        font-weight: 500;
+        color: var(--pm-gray-600);
+        transition: all 0.15s ease;
+    }
+
+    .pm-scope-radio input[type="radio"]:checked+.pm-scope-radio-label {
+        border-color: var(--pm-brand-500);
+        background: var(--pm-brand-50);
+        color: var(--pm-brand-700);
+    }
+
+    .pm-scope-radio-label:hover {
+        border-color: var(--pm-gray-400);
+    }
+
+    /* -- Scope detail panels -- */
+    .pm-scope-panel {
+        margin-bottom: 0.5rem;
+    }
+
+    .pm-scope-panel-inner {
+        background: var(--pm-info-bg);
+        border: 1px solid var(--pm-brand-200);
+        border-radius: var(--pm-radius-sm);
+        padding: 0.85rem 1rem;
+        font-size: 0.88rem;
+        color: var(--pm-gray-700);
+    }
+
+    /* -- Checkbox grid for department / division selection -- */
+    .pm-checkbox-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 0.5rem;
+        max-height: 360px;
+        overflow-y: auto;
+        padding-right: 0.25rem;
+    }
+
+    .pm-checkbox-card {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.5rem;
+        padding: 0.6rem 0.75rem;
+        border: 1px solid var(--pm-gray-200);
+        border-radius: var(--pm-radius-sm);
+        cursor: pointer;
+        transition: all 0.12s ease;
+        font-size: 0.85rem;
+    }
+
+    .pm-checkbox-card:hover {
+        border-color: var(--pm-brand-500);
+        background: var(--pm-brand-50);
+    }
+
+    .pm-checkbox-card:has(input:checked) {
+        border-color: var(--pm-brand-500);
+        background: var(--pm-brand-50);
+    }
+
+    .pm-checkbox-card input[type="checkbox"] {
+        margin-top: 0.15rem;
+        flex-shrink: 0;
+        accent-color: var(--pm-brand-600);
+    }
+
+    .pm-checkbox-card-label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.1rem;
+        line-height: 1.3;
+    }
+
+    .pm-checkbox-card-label strong {
+        font-size: 0.8rem;
+        color: var(--pm-gray-500);
+    }
+</style>
+
+{# ── Scope panel toggling and HTMX division loading ── #}
+<script>
+    /**
+     * Show/hide the scope detail panels based on the selected radio.
+     *
+     * @param {string} scopeType  One of 'organization', 'department', 'division'.
+     */
+    function toggleScopePanel(scopeType) {
+        /* Hide all panels first. */
+        document.getElementById('panel-organization').style.display = 'none';
+        document.getElementById('panel-department').style.display = 'none';
+        document.getElementById('panel-division').style.display = 'none';
+
+        /* Show the selected panel. */
+        var panel = document.getElementById('panel-' + scopeType);
+        if (panel) {
+            panel.style.display = 'block';
+        }
+    }
+
+    /**
+     * Load division checkboxes via HTMX when the department filter changes.
+     *
+     * If no department is selected (value = ''), re-render the full
+     * division list from the server-rendered default.
+     *
+     * @param {string} deptId  The selected department ID, or '' for all.
+     */
+    function loadDivisionCheckboxes(deptId) {
+        var target = document.getElementById('division-checkboxes');
+
+        if (!deptId) {
+            /* No filter — reload the page-level default (all divisions).
+               We use HTMX to fetch with an empty department_id, which
+               the endpoint treats as "return all divisions". */
+            htmx.ajax('GET',
+                '{{ url_for("admin.htmx_user_divisions", user_id=user.id) }}',
+                { target: '#division-checkboxes', swap: 'innerHTML' }
+            );
+            return;
+        }
+
+        /* Fetch divisions for the selected department. */
+        htmx.ajax('GET',
+            '{{ url_for("admin.htmx_user_divisions", user_id=user.id) }}' +
+            '?department_id=' + deptId,
+            { target: '#division-checkboxes', swap: 'innerHTML' }
+        );
+    }
+</script>
+{% endblock %}

@@ -154,16 +154,47 @@ def _register_error_handlers(app: Flask) -> None:
 
 
 def _register_cli_commands(app: Flask) -> None:
-    """Register custom Flask CLI commands (e.g., flask db-check)."""
-    from .cli import register_commands  # pylint: disable=import-outside-toplevel
+    """
+    Register custom Flask CLI commands.
+
+    Registers the ``db-check`` utility command and all development
+    seed commands (``seed-dev-admin``, ``seed-dev-manager``, etc.).
+    """
+    # pylint: disable=import-outside-toplevel
+
+    # Core CLI utilities (db-check, etc.).
+    from .cli import register_commands
+
+    register_commands(app)
+
+    # Dev user seed commands — one per role.
     from .seed_dev_admin import (
-        register_seed_commands,
-    )  # pylint: disable=import-outside-toplevel
+        register_seed_commands as register_admin_seeds,
+    )
+    from .seed_dev_manager import (
+        register_seed_commands as register_manager_seeds,
+    )
+    from .seed_dev_it_staff import (
+        register_seed_commands as register_it_staff_seeds,
+    )
+    from .seed_dev_read_only import (
+        register_seed_commands as register_read_only_seeds,
+    )
+    from .seed_dev_budget_executive import (
+        register_seed_commands as register_budget_seeds,
+    )
 
-    register_commands(app)
+    # Dev user scope assignment command.
+    from .seed_dev_scope import (
+        register_seed_commands as register_scope_seeds,
+    )
 
-    register_commands(app)
-    register_seed_commands(app)
+    register_admin_seeds(app)
+    register_manager_seeds(app)
+    register_it_staff_seeds(app)
+    register_read_only_seeds(app)
+    register_budget_seeds(app)
+    register_scope_seeds(app)
 
 
 def _configure_logging(app: Flask) -> None:

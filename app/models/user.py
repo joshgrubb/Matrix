@@ -59,9 +59,7 @@ class Permission(db.Model):
     __table_args__ = {"schema": "auth"}
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    permission_name = db.Column(
-        db.String(100), unique=True, nullable=False
-    )
+    permission_name = db.Column(db.String(100), unique=True, nullable=False)
     description = db.Column(db.String(200), nullable=True)
     created_at = db.Column(
         db.DateTime, nullable=False, server_default=db.text("SYSUTCDATETIME()")
@@ -95,18 +93,14 @@ class RolePermission(db.Model):
     )
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    role_id = db.Column(
-        db.Integer, db.ForeignKey("auth.role.id"), nullable=False
-    )
+    role_id = db.Column(db.Integer, db.ForeignKey("auth.role.id"), nullable=False)
     permission_id = db.Column(
         db.Integer, db.ForeignKey("auth.permission.id"), nullable=False
     )
 
     # -- Relationships -----------------------------------------------------
     role = db.relationship("Role", back_populates="role_permissions")
-    permission = db.relationship(
-        "Permission", back_populates="role_permissions"
-    )
+    permission = db.relationship("Permission", back_populates="role_permissions")
 
 
 class User(UserMixin, db.Model):
@@ -130,13 +124,9 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(200), unique=True, nullable=False)
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
-    role_id = db.Column(
-        db.Integer, db.ForeignKey("auth.role.id"), nullable=False
-    )
+    role_id = db.Column(db.Integer, db.ForeignKey("auth.role.id"), nullable=False)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
-    provisioned_by = db.Column(
-        db.Integer, db.ForeignKey("auth.user.id"), nullable=True
-    )
+    provisioned_by = db.Column(db.Integer, db.ForeignKey("auth.user.id"), nullable=True)
     provisioned_at = db.Column(db.DateTime, nullable=True)
     first_login_at = db.Column(db.DateTime, nullable=True)
     last_login = db.Column(db.DateTime, nullable=True)
@@ -149,9 +139,7 @@ class User(UserMixin, db.Model):
 
     # -- Relationships -----------------------------------------------------
     role = db.relationship("Role", back_populates="users")
-    scopes = db.relationship(
-        "UserScope", back_populates="user", lazy="joined"
-    )
+    scopes = db.relationship("UserScope", back_populates="user", lazy="joined")
     provisioner = db.relationship(
         "User", remote_side=[id], foreign_keys=[provisioned_by]
     )
@@ -168,6 +156,8 @@ class User(UserMixin, db.Model):
         """Shortcut to the user's role name string."""
         return self.role.role_name if self.role else "unknown"
 
+    # ---- Role checks -----------------------------------------------------
+
     def has_role(self, *role_names: str) -> bool:
         """Check if the user has any of the given role names."""
         return self.role_name in role_names
@@ -181,9 +171,43 @@ class User(UserMixin, db.Model):
             for rp in self.role.role_permissions
         )
 
+    # ---- Scope checks ----------------------------------------------------
+
     def has_org_scope(self) -> bool:
         """Return True if the user has organization-wide scope."""
         return any(s.scope_type == "organization" for s in self.scopes)
+
+    def scoped_department_ids(self) -> list[int]:
+        """
+        Return a list of department IDs the user has explicit access to.
+
+        Collects IDs from all ``department``-type scopes.  Does **not**
+        include departments implied by division-level scopes — callers
+        in ``organization_service`` handle that roll-up themselves.
+
+        Returns:
+            A list of ``org.department.id`` values, possibly empty.
+        """
+        return [
+            s.department_id
+            for s in self.scopes
+            if s.scope_type == "department" and s.department_id is not None
+        ]
+
+    def scoped_division_ids(self) -> list[int]:
+        """
+        Return a list of division IDs the user has explicit access to.
+
+        Collects IDs from all ``division``-type scopes.
+
+        Returns:
+            A list of ``org.division.id`` values, possibly empty.
+        """
+        return [
+            s.division_id
+            for s in self.scopes
+            if s.scope_type == "division" and s.division_id is not None
+        ]
 
     def __repr__(self) -> str:
         return f"<User {self.email} role={self.role_name}>"
@@ -227,7 +251,4 @@ class UserScope(db.Model):
     division = db.relationship("Division")
 
     def __repr__(self) -> str:
-        return (
-            f"<UserScope user={self.user_id} "
-            f"type={self.scope_type}>"
-        )
+        return f"<UserScope user={self.user_id} " f"type={self.scope_type}>"

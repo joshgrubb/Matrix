@@ -6,6 +6,8 @@ Flow: Select Position → Select Hardware → Select Software → Summary.
 Restricted to admin, IT staff, and scoped managers.
 """
 
+import logging
+
 from flask import flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
@@ -18,10 +20,13 @@ from app.services import (
     requirement_service,
 )
 
+logger = logging.getLogger(__name__)
+
 
 # =========================================================================
 # Step 1: Select Position
 # =========================================================================
+
 
 @bp.route("/")
 @login_required
@@ -43,6 +48,7 @@ def select_position():
 # =========================================================================
 # Step 2: Select Hardware
 # =========================================================================
+
 
 @bp.route("/position/<int:position_id>/hardware", methods=["GET", "POST"])
 @login_required
@@ -68,17 +74,33 @@ def select_hardware(position_id):
         # Parse submitted hardware selections.
         items = _parse_hardware_form(request.form)
 
-        requirement_service.set_position_hardware(
-            position_id=position_id,
-            items=items,
-            user_id=current_user.id,
-        )
-        flash("Hardware requirements saved.", "success")
-        return redirect(
-            url_for("requirements.select_software", position_id=position_id)
-        )
+        # FIX: Wrap the service call in try/except so database errors
+        # produce a user-visible flash message instead of a bare 500.
+        try:
+            requirement_service.set_position_hardware(
+                position_id=position_id,
+                items=items,
+                user_id=current_user.id,
+            )
+            flash("Hardware requirements saved.", "success")
+            return redirect(
+                url_for(
+                    "requirements.select_software",
+                    position_id=position_id,
+                )
+            )
+        except Exception:
+            logger.exception(
+                "Error saving hardware requirements for position %d",
+                position_id,
+            )
+            flash(
+                "An error occurred while saving hardware requirements. "
+                "Please try again.",
+                "danger",
+            )
 
-    # GET: Load current requirements and available types.
+    # GET (or POST that failed): Load current requirements and types.
     current_hw = requirement_service.get_hardware_requirements(position_id)
     all_hw_types = equipment_service.get_hardware_types()
 
@@ -99,6 +121,7 @@ def select_hardware(position_id):
 # =========================================================================
 # Step 3: Select Software
 # =========================================================================
+
 
 @bp.route("/position/<int:position_id>/software", methods=["GET", "POST"])
 @login_required
@@ -122,16 +145,33 @@ def select_software(position_id):
     if request.method == "POST":
         items = _parse_software_form(request.form)
 
-        requirement_service.set_position_software(
-            position_id=position_id,
-            items=items,
-            user_id=current_user.id,
-        )
-        flash("Software requirements saved.", "success")
-        return redirect(
-            url_for("requirements.position_summary", position_id=position_id)
-        )
+        # FIX: Wrap the service call in try/except so database errors
+        # produce a user-visible flash message instead of a bare 500.
+        try:
+            requirement_service.set_position_software(
+                position_id=position_id,
+                items=items,
+                user_id=current_user.id,
+            )
+            flash("Software requirements saved.", "success")
+            return redirect(
+                url_for(
+                    "requirements.position_summary",
+                    position_id=position_id,
+                )
+            )
+        except Exception:
+            logger.exception(
+                "Error saving software requirements for position %d",
+                position_id,
+            )
+            flash(
+                "An error occurred while saving software requirements. "
+                "Please try again.",
+                "danger",
+            )
 
+    # GET (or POST that failed): Load current requirements and products.
     current_sw = requirement_service.get_software_requirements(position_id)
     all_software = equipment_service.get_software_products()
 
@@ -151,6 +191,7 @@ def select_software(position_id):
 # =========================================================================
 # Step 4: Summary
 # =========================================================================
+
 
 @bp.route("/position/<int:position_id>/summary")
 @login_required
@@ -184,6 +225,7 @@ def position_summary(position_id):
 # =========================================================================
 # Individual requirement CRUD (HTMX endpoints)
 # =========================================================================
+
 
 @bp.route("/hardware/<int:req_id>/remove", methods=["POST"])
 @login_required
@@ -222,6 +264,7 @@ def remove_software(req_id):
 # Form parsing helpers
 # =========================================================================
 
+
 def _parse_hardware_form(form) -> list[dict]:
     """
     Parse hardware selections from the form.
@@ -248,11 +291,16 @@ def _parse_hardware_form(form) -> list[dict]:
             except ValueError:
                 quantity = 1
 
-            items.append({
-                "hardware_type_id": hw_type_id,
-                "quantity": quantity,
-                "notes": notes,
-            })
+            items.append(
+                {
+                    "hardware_type_id": hw_type_id,
+                    "quantity": quantity,
+                    "notes": notes,
+                }
+            )
+
+    # FIX: Log parsed items so form-parsing issues are visible.
+    logger.debug("Parsed %d hardware items from form", len(items))
     return items
 
 
@@ -282,9 +330,14 @@ def _parse_software_form(form) -> list[dict]:
             except ValueError:
                 quantity = 1
 
-            items.append({
-                "software_id": sw_id,
-                "quantity": quantity,
-                "notes": notes,
-            })
+            items.append(
+                {
+                    "software_id": sw_id,
+                    "quantity": quantity,
+                    "notes": notes,
+                }
+            )
+
+    # FIX: Log parsed items so form-parsing issues are visible.
+    logger.debug("Parsed %d software items from form", len(items))
     return items

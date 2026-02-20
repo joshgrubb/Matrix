@@ -1,0 +1,31 @@
+{#
+HTMX partial: Division checkboxes for the scope editor.
+
+Returned by the admin blueprint's ``htmx_user_divisions`` endpoint.
+Swapped into the ``#division-checkboxes`` container on the user
+edit page when the admin filters by department.
+
+Context variables:
+divisions — list of Division model instances to render.
+current_div_ids — list of division IDs currently in the user's scopes
+(used to pre-check boxes).
+#}
+{% if divisions %}
+<div class="pm-checkbox-grid">
+    {% for div in divisions %}
+    <label class="pm-checkbox-card">
+        <input type="checkbox" name="division_ids" value="{{ div.id }}" {% if div.id in current_div_ids %}checked{%
+            endif %}>
+        <span class="pm-checkbox-card-label">
+            <strong>{{ div.division_code }}</strong>
+            <span>{{ div.division_name }}</span>
+            <small class="pm-text-muted">{{ div.department.department_name }}</small>
+        </span>
+    </label>
+    {% endfor %}
+</div>
+{% else %}
+<p class="pm-text-muted" style="font-size: 0.88rem;">
+    No active divisions found for this department.
+</p>
+{% endif %}

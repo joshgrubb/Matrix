@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dev Login Picker — PositionMatrix</title>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <!-- PositionMatrix Design System -->
+    <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+
+    <style>
+        /* ── Picker-specific styles ── */
+        .pm-dev-picker {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+            background: var(--pm-gray-50, #f8f9fa);
+        }
+
+        .pm-dev-picker-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .pm-dev-picker-header h2 {
+            font-family: var(--pm-font-heading, 'Inter', sans-serif);
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .pm-dev-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+            width: 100%;
+            max-width: 960px;
+        }
+
+        .pm-dev-card {
+            background: #ffffff;
+            border: 1px solid var(--pm-gray-200, #e5e7eb);
+            border-radius: var(--pm-radius-md, 8px);
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            transition: box-shadow 0.15s ease, border-color 0.15s ease;
+        }
+
+        .pm-dev-card:hover {
+            border-color: var(--pm-brand-400, #7ba0e0);
+            box-shadow: 0 4px 12px rgba(59, 101, 184, 0.12);
+        }
+
+        .pm-dev-card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .pm-dev-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: #ffffff;
+            flex-shrink: 0;
+        }
+
+        /* Role-based avatar colors. */
+        .pm-dev-avatar--admin {
+            background: var(--pm-danger, #dc3545);
+        }
+
+        .pm-dev-avatar--it_staff {
+            background: var(--pm-brand-600, #3b65b8);
+        }
+
+        .pm-dev-avatar--manager {
+            background: var(--pm-success, #2f9461);
+        }
+
+        .pm-dev-avatar--read_only {
+            background: var(--pm-gray-400, #9ca3af);
+        }
+
+        .pm-dev-avatar--budget_executive {
+            background: #8b5cf6;
+        }
+
+        .pm-dev-avatar--default {
+            background: var(--pm-gray-500, #6b7280);
+        }
+
+        .pm-dev-card-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            line-height: 1.2;
+        }
+
+        .pm-dev-card-email {
+            font-size: 0.8rem;
+            color: var(--pm-gray-400, #9ca3af);
+        }
+
+        .pm-dev-card-meta {
+            font-size: 0.82rem;
+            color: var(--pm-gray-600, #4b5563);
+        }
+
+        .pm-dev-role-badge {
+            display: inline-block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.15rem 0.5rem;
+            border-radius: 999px;
+            text-transform: capitalize;
+        }
+
+        .pm-dev-role-badge--admin {
+            background: #fde8e8;
+            color: #b91c1c;
+        }
+
+        .pm-dev-role-badge--it_staff {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .pm-dev-role-badge--manager {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .pm-dev-role-badge--read_only {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .pm-dev-role-badge--budget_executive {
+            background: #ede9fe;
+            color: #5b21b6;
+        }
+
+        .pm-dev-role-badge--default {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .pm-dev-empty {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--pm-gray-400, #9ca3af);
+        }
+
+        .pm-dev-back-link {
+            margin-top: 1.5rem;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="pm-dev-picker">
+
+        {# -- Flash messages -- #}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div style="position: fixed; top: 1rem; left: 50%; transform: translateX(-50%);
+                    z-index: 9999; width: 90%; max-width: 520px;">
+            {% for category, message in messages %}
+            <div class="pm-alert pm-alert-{{ category }} alert alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        {# -- Header -- #}
+        <div class="pm-dev-picker-header">
+            <div style="margin-bottom: 0.5rem;">
+                <i class="bi bi-person-badge" style="font-size: 2rem; color: var(--pm-brand-600, #3b65b8);"></i>
+            </div>
+            <h2>Dev Login Picker</h2>
+            <p class="pm-text-muted" style="font-size: 0.9rem; margin-bottom: 0;">
+                Select a dev user to sign in as. Each card shows the user's
+                role and organizational scope.
+            </p>
+        </div>
+
+        {# -- User cards grid -- #}
+        {% if user_cards %}
+        <div class="pm-dev-grid">
+            {% for card in user_cards %}
+            <div class="pm-dev-card">
+                <div class="pm-dev-card-header">
+                    {# Avatar circle with initials and role-based color. #}
+                    {% set avatar_class = "pm-dev-avatar--" ~ card.role_name
+                    if card.role_name in ["admin", "it_staff", "manager", "read_only", "budget_executive"]
+                    else "pm-dev-avatar--default" %}
+                    <div class="pm-dev-avatar {{ avatar_class }}">
+                        {{ card.full_name[0] | upper }}
+                    </div>
+                    <div>
+                        <div class="pm-dev-card-name">{{ card.full_name }}</div>
+                        <div class="pm-dev-card-email">{{ card.email }}</div>
+                    </div>
+                </div>
+
+                <div class="pm-dev-card-meta">
+                    <span class="pm-dev-role-badge
+                        pm-dev-role-badge--{{ card.role_name
+                            if card.role_name in ['admin', 'it_staff', 'manager', 'read_only', 'budget_executive']
+                            else 'default' }}">
+                        {{ card.role_name | replace('_', ' ') }}
+                    </span>
+                    &nbsp;·&nbsp;
+                    <span title="Organizational scope">{{ card.scope_summary }}</span>
+                </div>
+
+                <a href="{{ url_for('auth.dev_login', user_id=card.id) }}"
+                    class="pm-btn pm-btn-primary pm-btn-sm pm-btn-block">
+                    <i class="bi bi-box-arrow-in-right"></i>
+                    Sign in as {{ card.full_name }}
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        {# -- Empty state -- #}
+        <div class="pm-dev-empty">
+            <i class="bi bi-people" style="font-size: 2.5rem;"></i>
+            <p style="margin-top: 0.75rem; font-size: 0.95rem;">
+                No dev users found.
+            </p>
+            <p style="font-size: 0.85rem;">
+                Run one or more seed scripts to create dev users:
+            </p>
+            <pre style="text-align: left; display: inline-block; font-size: 0.82rem;
+                        background: #fff; padding: 1rem; border-radius: 6px;
+                        border: 1px solid var(--pm-gray-200, #e5e7eb);">flask seed-dev-admin
+flask seed-dev-manager
+flask seed-dev-it_staff
+flask seed-dev-read_only
+flask seed-dev-budget-executive</pre>
+        </div>
+        {% endif %}
+
+        {# -- Back link -- #}
+        <div class="pm-dev-back-link">
+            <a href="{{ url_for('auth.login_page') }}" class="pm-btn pm-btn-secondary pm-btn-sm">
+                <i class="bi bi-arrow-left"></i>
+                Back to Login
+            </a>
+        </div>
+
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+        crossorigin="anonymous"></script>
+</body>
+
+</html>

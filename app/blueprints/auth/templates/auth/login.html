@@ -62,7 +62,7 @@
             {# Dev login — only shown in debug mode #}
             {% if config.DEBUG %}
             <hr style="margin: 1.5rem 0; border-color: var(--pm-gray-200);">
-            <a href="{{ url_for('auth.dev_login') }}" class="pm-btn pm-btn-secondary pm-btn-sm pm-btn-block">
+            <a href="{{ url_for('auth.dev_login_picker') }}" class="pm-btn pm-btn-secondary pm-btn-sm pm-btn-block">
                 <i class="bi bi-code-square"></i>
                 Dev Login (Debug Only)
             </a>

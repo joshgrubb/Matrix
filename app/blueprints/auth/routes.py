@@ -4,6 +4,11 @@ Routes for the auth blueprint — login, logout, and OAuth2 callback.
 The login flow redirects to Microsoft Entra ID for authentication.
 After successful auth, the callback route exchanges the authorization
 code for tokens and logs the user in via Flask-Login.
+
+Development-only routes (``/dev-login``, ``/dev-login-picker``) are
+available when ``FLASK_ENV=development`` (i.e., ``app.debug`` is True).
+These routes bypass OAuth2 and allow one-click login as any seeded
+dev user, optionally filtered by role.
 """
 
 import uuid
@@ -111,34 +116,169 @@ def unauthorized():
     return render_template("auth/unauthorized.html"), 403
 
 
+# =========================================================================
+# Development-Only Routes
+# =========================================================================
+
+
 @bp.route("/dev-login")
 def dev_login():
     """
     Development-only login bypass.
 
-    Logs in as the first active admin user without OAuth2.  This route
-    is only available when FLASK_ENV=development.
+    Logs in as a dev user without OAuth2.  Accepts an optional ``role``
+    query parameter to select a user by role name, and an optional
+    ``user_id`` parameter to select a specific user by primary key.
+
+    Query Parameters:
+        role (str):     Role name to match (e.g., ``admin``, ``manager``).
+                        Defaults to ``admin`` for backward compatibility.
+        user_id (int):  Specific user ID to log in as.  Takes precedence
+                        over ``role`` when both are provided.
+
+    Examples::
+
+        /auth/dev-login                    → first active admin
+        /auth/dev-login?role=manager       → first active manager
+        /auth/dev-login?role=read_only     → first active read-only user
+        /auth/dev-login?user_id=7          → user with id=7
+
+    This route is only available when ``FLASK_ENV=development``.
     """
     if not current_app.debug:
         flash("Development login is only available in debug mode.", "danger")
         return redirect(url_for("auth.login_page"))
 
+    # Import models inside the route to avoid circular imports.
     from app.models.user import User  # pylint: disable=import-outside-toplevel
 
-    # Find the first active admin user.
-    admin_user = (
-        User.query.join(User.role)
-        .filter(
-            User.is_active == True,  # pylint: disable=singleton-comparison
-            User.role.has(role_name="admin"),
-        )
-        .first()
-    )
+    # Determine which user to log in as.
+    target_user = None
+    user_id_param = request.args.get("user_id", type=int)
+    role_param = request.args.get("role", "admin").strip().lower()
 
-    if admin_user is None:
-        flash("No admin user found. Create one first.", "warning")
+    if user_id_param is not None:
+        # Direct user ID selection — highest priority.
+        target_user = User.query.filter(
+            User.id == user_id_param,
+            User.is_active == True,  # pylint: disable=singleton-comparison
+        ).first()
+
+        if target_user is None:
+            flash(
+                f"No active user found with ID {user_id_param}.",
+                "warning",
+            )
+            return redirect(url_for("auth.dev_login_picker"))
+    else:
+        # Role-based selection — find the first active user with this role.
+        target_user = (
+            User.query.join(User.role)
+            .filter(
+                User.is_active == True,  # pylint: disable=singleton-comparison
+                User.role.has(role_name=role_param),
+            )
+            .first()
+        )
+
+        if target_user is None:
+            flash(
+                f"No active user with role '{role_param}' found. "
+                f"Run the seed script first: flask seed-dev-{role_param}",
+                "warning",
+            )
+            return redirect(url_for("auth.dev_login_picker"))
+
+    # Log the user in via Flask-Login.
+    login_user(target_user)
+
+    # Build a descriptive scope summary for the flash message.
+    scope_summary = _describe_user_scopes(target_user)
+
+    flash(
+        f"Dev login: signed in as {target_user.full_name} "
+        f"({target_user.role_name}). Scope: {scope_summary}",
+        "info",
+    )
+    return redirect(url_for("main.dashboard"))
+
+
+@bp.route("/dev-login-picker")
+def dev_login_picker():
+    """
+    Development-only login picker page.
+
+    Lists all dev users (identified by ``@localhost`` email addresses)
+    with one-click login buttons.  Shows each user's role, scope, and
+    department/division assignments for easy test-role selection.
+
+    This route is only available when ``FLASK_ENV=development``.
+    """
+    if not current_app.debug:
+        flash("Development login is only available in debug mode.", "danger")
         return redirect(url_for("auth.login_page"))
 
-    login_user(admin_user)
-    flash(f"Dev login: signed in as {admin_user.full_name} (admin).", "info")
-    return redirect(url_for("main.dashboard"))
+    # Import models inside the route to avoid circular imports.
+    from app.models.user import User  # pylint: disable=import-outside-toplevel
+
+    # Fetch all localhost dev users, grouped by role.
+    dev_users = (
+        User.query.join(User.role)
+        .filter(
+            User.email.ilike("%@localhost"),
+            User.is_active == True,  # pylint: disable=singleton-comparison
+        )
+        .order_by(User.role_id, User.last_name)
+        .all()
+    )
+
+    # Build a list of user dicts with scope descriptions for the template.
+    user_cards = []
+    for user in dev_users:
+        user_cards.append(
+            {
+                "id": user.id,
+                "full_name": user.full_name,
+                "email": user.email,
+                "role_name": user.role_name,
+                "scope_summary": _describe_user_scopes(user),
+            }
+        )
+
+    return render_template(
+        "auth/dev_login.html",
+        user_cards=user_cards,
+    )
+
+
+def _describe_user_scopes(user) -> str:
+    """
+    Build a human-readable summary of a user's organizational scopes.
+
+    Args:
+        user: A User model instance with eagerly loaded scopes.
+
+    Returns:
+        A string like ``Organization-wide``, ``Dept: Public Works``,
+        or ``Div: Roads & Bridges, Water``.
+    """
+    if user.has_org_scope():
+        return "Organization-wide"
+
+    # Collect department and division scope descriptions.
+    dept_names = []
+    div_names = []
+
+    for scope in user.scopes:
+        if scope.scope_type == "department" and scope.department is not None:
+            dept_names.append(scope.department.department_name)
+        elif scope.scope_type == "division" and scope.division is not None:
+            div_names.append(scope.division.division_name)
+
+    parts = []
+    if dept_names:
+        parts.append(f"Dept: {', '.join(dept_names)}")
+    if div_names:
+        parts.append(f"Div: {', '.join(div_names)}")
+
+    return "; ".join(parts) if parts else "No scopes assigned"

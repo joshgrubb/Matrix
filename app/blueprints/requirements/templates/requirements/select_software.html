@@ -58,12 +58,16 @@
                         {% set is_selected = sw.id in selected %}
                         <tr>
                             <td class="text-center">
-                                <input type="checkbox" class="form-check-input" name="sw_{{ sw.id }}" value="1" {% if
-                                    is_selected %}checked{% endif %} id="sw_{{ sw.id }}"
-                                    style="width: 1.2em; height: 1.2em;">
+                                {# FIX: Changed name from "sw_<id>" to "sw_<id>_selected"
+                                        to match the pattern expected by _parse_software_form()
+                                        in routes.py. The parser looks for keys ending in
+                                        "_selected" to identify checked software products. #}
+                                        <input type="checkbox" class="form-check-input" name="sw_{{ sw.id }}_selected"
+                                            value="on" {% if is_selected %}checked{% endif %}
+                                            id="sw_{{ sw.id }}_selected" style="width: 1.2em; height: 1.2em;">
                             </td>
                             <td>
-                                <label for="sw_{{ sw.id }}" style="cursor: pointer; font-weight: 500;">
+                                <label for="sw_{{ sw.id }}_selected" style="cursor: pointer; font-weight: 500;">
                                     {{ sw.software_name }}
                                 </label>
                                 {% if sw.tier %}
