@@ -55,9 +55,10 @@ def select_position():
 @role_required("admin", "it_staff", "manager")
 def select_hardware(position_id):
     """
-    Step 2: Select hardware types for the position.
+    Step 2: Select hardware items for the position.
 
-    GET:  Display current hardware requirements and available types.
+    GET:  Display current hardware requirements and available items
+          grouped by hardware type.
     POST: Save hardware selections and advance to software step.
     """
     # Scope check.
@@ -74,7 +75,7 @@ def select_hardware(position_id):
         # Parse submitted hardware selections.
         items = _parse_hardware_form(request.form)
 
-        # FIX: Wrap the service call in try/except so database errors
+        # Wrap the service call in try/except so database errors
         # produce a user-visible flash message instead of a bare 500.
         try:
             requirement_service.set_position_hardware(
@@ -100,20 +101,31 @@ def select_hardware(position_id):
                 "danger",
             )
 
-    # GET (or POST that failed): Load current requirements and types.
+    # GET (or POST that failed): Load current requirements and items.
     current_hw = requirement_service.get_hardware_requirements(position_id)
+    all_hw_items = equipment_service.get_hardware_items()
     all_hw_types = equipment_service.get_hardware_types()
 
     # Build a dict of current selections for template pre-population.
+    # Keyed by hardware_id (not hardware_type_id).
     selected = {
-        req.hardware_type_id: {"quantity": req.quantity, "notes": req.notes}
+        req.hardware_id: {"quantity": req.quantity, "notes": req.notes}
         for req in current_hw
     }
+
+    # Group hardware items by type for display.
+    items_by_type = {}
+    for hw_item in all_hw_items:
+        type_id = hw_item.hardware_type_id
+        if type_id not in items_by_type:
+            items_by_type[type_id] = []
+        items_by_type[type_id].append(hw_item)
 
     return render_template(
         "requirements/select_hardware.html",
         position=position,
         hardware_types=all_hw_types,
+        items_by_type=items_by_type,
         selected=selected,
     )
 
@@ -145,8 +157,6 @@ def select_software(position_id):
     if request.method == "POST":
         items = _parse_software_form(request.form)
 
-        # FIX: Wrap the service call in try/except so database errors
-        # produce a user-visible flash message instead of a bare 500.
         try:
             requirement_service.set_position_software(
                 position_id=position_id,
@@ -270,21 +280,23 @@ def _parse_hardware_form(form) -> list[dict]:
     Parse hardware selections from the form.
 
     Form fields follow the pattern:
-        hw_<hardware_type_id>_selected = 'on'
-        hw_<hardware_type_id>_quantity = '2'
-        hw_<hardware_type_id>_notes = 'Optional note'
+        hw_<hardware_id>_selected = 'on'
+        hw_<hardware_id>_quantity = '2'
+        hw_<hardware_id>_notes = 'Optional note'
+
+    NOTE: This now parses hardware_id (specific item), not hardware_type_id.
     """
     items = []
     for key in form:
         if key.endswith("_selected") and key.startswith("hw_"):
-            hw_type_id_str = key.replace("hw_", "").replace("_selected", "")
+            hw_id_str = key.replace("hw_", "").replace("_selected", "")
             try:
-                hw_type_id = int(hw_type_id_str)
+                hardware_id = int(hw_id_str)
             except ValueError:
                 continue
 
-            quantity = form.get(f"hw_{hw_type_id}_quantity", "1")
-            notes = form.get(f"hw_{hw_type_id}_notes", "").strip() or None
+            quantity = form.get(f"hw_{hardware_id}_quantity", "1")
+            notes = form.get(f"hw_{hardware_id}_notes", "").strip() or None
 
             try:
                 quantity = max(1, int(quantity))
@@ -293,13 +305,12 @@ def _parse_hardware_form(form) -> list[dict]:
 
             items.append(
                 {
-                    "hardware_type_id": hw_type_id,
+                    "hardware_id": hardware_id,
                     "quantity": quantity,
                     "notes": notes,
                 }
             )
 
-    # FIX: Log parsed items so form-parsing issues are visible.
     logger.debug("Parsed %d hardware items from form", len(items))
     return items
 
@@ -338,6 +349,5 @@ def _parse_software_form(form) -> list[dict]:
                 }
             )
 
-    # FIX: Log parsed items so form-parsing issues are visible.
     logger.debug("Parsed %d software items from form", len(items))
     return items

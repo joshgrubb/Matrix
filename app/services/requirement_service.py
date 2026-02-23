@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_hardware_requirements(position_id: int) -> list[PositionHardware]:
-    """Return all hardware requirements for a position, with related types."""
+    """Return all hardware requirements for a position, with related items."""
     return (
         PositionHardware.query.filter_by(position_id=position_id)
         .order_by(PositionHardware.id)
@@ -33,23 +33,23 @@ def get_hardware_requirements(position_id: int) -> list[PositionHardware]:
 
 def add_hardware_requirement(
     position_id: int,
-    hardware_type_id: int,
+    hardware_id: int,
     quantity: int = 1,
     notes: str | None = None,
     user_id: int | None = None,
 ) -> PositionHardware:
     """
-    Add a hardware type requirement to a position.
+    Add a hardware item requirement to a position.
 
-    If the position already has this hardware type, the existing record
+    If the position already has this hardware item, the existing record
     is updated instead of creating a duplicate.
 
     Args:
-        position_id:      The position to add the requirement to.
-        hardware_type_id: The hardware type to require.
-        quantity:         Number per person in the position.
-        notes:            Optional notes about this requirement.
-        user_id:          ID of the user making the change.
+        position_id: The position to add the requirement to.
+        hardware_id: The specific hardware item to require.
+        quantity:    Number per person in the position.
+        notes:       Optional notes about this requirement.
+        user_id:     ID of the user making the change.
 
     Returns:
         The created or updated PositionHardware record.
@@ -57,7 +57,7 @@ def add_hardware_requirement(
     # Check for existing record (enforce uniqueness).
     existing = PositionHardware.query.filter_by(
         position_id=position_id,
-        hardware_type_id=hardware_type_id,
+        hardware_id=hardware_id,
     ).first()
 
     if existing:
@@ -70,7 +70,7 @@ def add_hardware_requirement(
 
     req = PositionHardware(
         position_id=position_id,
-        hardware_type_id=hardware_type_id,
+        hardware_id=hardware_id,
         quantity=quantity,
         notes=notes,
     )
@@ -81,7 +81,7 @@ def add_hardware_requirement(
     _record_requirement_history(
         position_id=position_id,
         item_type="hardware",
-        item_id=hardware_type_id,
+        item_id=hardware_id,
         action_type="ADDED",
         quantity=quantity,
         user_id=user_id,
@@ -94,7 +94,7 @@ def add_hardware_requirement(
         entity_id=req.id,
         new_value={
             "position_id": position_id,
-            "hardware_type_id": hardware_type_id,
+            "hardware_id": hardware_id,
             "quantity": quantity,
             "notes": notes,
         },
@@ -102,9 +102,9 @@ def add_hardware_requirement(
     db.session.commit()
 
     logger.info(
-        "Added hardware requirement: position=%d hw_type=%d qty=%d",
+        "Added hardware requirement: position=%d hardware=%d qty=%d",
         position_id,
-        hardware_type_id,
+        hardware_id,
         quantity,
     )
     return req
@@ -117,7 +117,13 @@ def update_hardware_requirement(
     user_id: int | None = None,
 ) -> PositionHardware:
     """
-    Update an existing hardware requirement's quantity or notes.
+    Update an existing hardware requirement.
+
+    Args:
+        requirement_id: PK of the PositionHardware record.
+        quantity:        New quantity (if changing).
+        notes:           New notes (if changing).
+        user_id:         ID of the user making the change.
 
     Returns:
         The updated PositionHardware record.
@@ -140,7 +146,7 @@ def update_hardware_requirement(
     _record_requirement_history(
         position_id=req.position_id,
         item_type="hardware",
-        item_id=req.hardware_type_id,
+        item_id=req.hardware_id,
         action_type="MODIFIED",
         quantity=req.quantity,
         user_id=user_id,
@@ -163,7 +169,7 @@ def remove_hardware_requirement(
     user_id: int | None = None,
 ) -> None:
     """
-    Remove a hardware requirement from a position.
+    Remove a hardware requirement from a position (hard delete).
 
     This is a hard delete since the requirement history table preserves
     the audit trail.
@@ -178,7 +184,7 @@ def remove_hardware_requirement(
     _record_requirement_history(
         position_id=req.position_id,
         item_type="hardware",
-        item_id=req.hardware_type_id,
+        item_id=req.hardware_id,
         action_type="REMOVED",
         quantity=req.quantity,
         user_id=user_id,
@@ -191,7 +197,7 @@ def remove_hardware_requirement(
         entity_id=req.id,
         previous_value={
             "position_id": req.position_id,
-            "hardware_type_id": req.hardware_type_id,
+            "hardware_id": req.hardware_id,
             "quantity": req.quantity,
         },
     )
@@ -285,7 +291,7 @@ def add_software_requirement(
     db.session.commit()
 
     logger.info(
-        "Added software requirement: position=%d sw=%d qty=%d",
+        "Added software requirement: position=%d software=%d qty=%d",
         position_id,
         software_id,
         quantity,
@@ -299,7 +305,12 @@ def update_software_requirement(
     notes: str | None = None,
     user_id: int | None = None,
 ) -> PositionSoftware:
-    """Update an existing software requirement's quantity or notes."""
+    """
+    Update an existing software requirement.
+
+    Raises:
+        ValueError: If the requirement is not found.
+    """
     req = db.session.get(PositionSoftware, requirement_id)
     if req is None:
         raise ValueError(f"Software requirement ID {requirement_id} not found.")
@@ -384,7 +395,7 @@ def set_position_hardware(
 
     Args:
         position_id: The position to update.
-        items:       List of dicts with ``hardware_type_id``, ``quantity``,
+        items:       List of dicts with ``hardware_id``, ``quantity``,
                      and optionally ``notes``.
         user_id:     ID of the user making the change.
 
@@ -398,23 +409,20 @@ def set_position_hardware(
             _record_requirement_history(
                 position_id=position_id,
                 item_type="hardware",
-                item_id=req.hardware_type_id,
+                item_id=req.hardware_id,
                 action_type="REMOVED",
                 quantity=req.quantity,
                 user_id=user_id,
             )
 
-        # FIX: Use synchronize_session="fetch" so SQLAlchemy correctly
-        # updates the identity map after the bulk DELETE.  The default
-        # "evaluate" strategy can leave stale objects in the session
-        # that interfere with subsequent flush operations on SQL Server.
+        # Use synchronize_session="fetch" so SQLAlchemy correctly
+        # updates the identity map after the bulk DELETE.
         PositionHardware.query.filter_by(position_id=position_id).delete(
             synchronize_session="fetch"
         )
 
         # Flush the delete so the unique constraint is satisfied
-        # before inserting new rows with potentially the same
-        # (position_id, hardware_type_id) pairs.
+        # before inserting new rows.
         db.session.flush()
 
         # Add new requirements.
@@ -422,7 +430,7 @@ def set_position_hardware(
         for item in items:
             req = PositionHardware(
                 position_id=position_id,
-                hardware_type_id=item["hardware_type_id"],
+                hardware_id=item["hardware_id"],
                 quantity=item.get("quantity", 1),
                 notes=item.get("notes"),
             )
@@ -432,7 +440,7 @@ def set_position_hardware(
             _record_requirement_history(
                 position_id=position_id,
                 item_type="hardware",
-                item_id=item["hardware_type_id"],
+                item_id=item["hardware_id"],
                 action_type="ADDED",
                 quantity=item.get("quantity", 1),
                 user_id=user_id,
@@ -483,7 +491,6 @@ def set_position_software(
         The new list of PositionSoftware records.
     """
     try:
-        # Record history for existing requirements being removed.
         existing = get_software_requirements(position_id)
         for req in existing:
             _record_requirement_history(
@@ -495,18 +502,11 @@ def set_position_software(
                 user_id=user_id,
             )
 
-        # FIX: Use synchronize_session="fetch" so SQLAlchemy correctly
-        # updates the identity map after the bulk DELETE.
         PositionSoftware.query.filter_by(position_id=position_id).delete(
             synchronize_session="fetch"
         )
-
-        # Flush the delete so the unique constraint is satisfied
-        # before inserting new rows with potentially the same
-        # (position_id, software_id) pairs.
         db.session.flush()
 
-        # Add new requirements.
         new_reqs = []
         for item in items:
             req = PositionSoftware(
@@ -545,7 +545,6 @@ def set_position_software(
         return new_reqs
 
     except Exception:
-        # Roll back so the session is usable for the error response.
         db.session.rollback()
         logger.exception(
             "Failed to save software requirements for position %d",
@@ -555,7 +554,7 @@ def set_position_software(
 
 
 # =========================================================================
-# Requirement History
+# Internal helpers
 # =========================================================================
 
 
@@ -566,9 +565,13 @@ def _record_requirement_history(
     action_type: str,
     quantity: int,
     user_id: int | None = None,
-    change_reason: str | None = None,
 ) -> None:
-    """Insert a requirement history event (no commit)."""
+    """
+    Insert a row into ``budget.requirement_history`` (no commit).
+
+    This preserves the full audit trail of requirement changes
+    even after hard-deletes of position_hardware / position_software.
+    """
     history = RequirementHistory(
         position_id=position_id,
         item_type=item_type,
@@ -576,6 +579,5 @@ def _record_requirement_history(
         action_type=action_type,
         quantity=quantity,
         changed_by=user_id,
-        change_reason=change_reason,
     )
     db.session.add(history)

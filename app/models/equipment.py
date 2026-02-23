@@ -4,6 +4,10 @@ Equipment catalog models — ``equip`` schema.
 Hardware types and software products define the catalog of IT items
 that can be assigned as position requirements.  Cost changes are
 tracked in the ``budget`` schema via the service layer.
+
+Hierarchy:
+  - HardwareType → Hardware  (mirrors SoftwareType → Software)
+  - SoftwareType → Software
 """
 
 from app.extensions import db
@@ -13,8 +17,8 @@ class HardwareType(db.Model):
     """
     Generic hardware category (e.g., Laptop, Monitor, Docking Station).
 
-    Not a specific asset — that's Phase 2.  ``estimated_cost`` is the
-    per-unit cost used in budgetary calculations.
+    Acts as a grouping/classification for specific hardware items,
+    similar to how ``SoftwareType`` groups ``Software`` products.
     """
 
     __tablename__ = "hardware_type"
@@ -23,9 +27,10 @@ class HardwareType(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     type_name = db.Column(db.String(100), unique=True, nullable=False)
     description = db.Column(db.String(500), nullable=True)
-    estimated_cost = db.Column(
-        db.Numeric(10, 2), nullable=False, default=0
-    )
+    # NOTE: estimated_cost is retained on hardware_type for backward
+    # compatibility and as a default / reference value.  The authoritative
+    # cost for budgeting now lives on individual Hardware items.
+    estimated_cost = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(
         db.DateTime, nullable=False, server_default=db.text("SYSUTCDATETIME()")
@@ -35,12 +40,57 @@ class HardwareType(db.Model):
     )
 
     # -- Relationships -----------------------------------------------------
-    position_hardware = db.relationship(
-        "PositionHardware", back_populates="hardware_type", lazy="dynamic"
+    # Child hardware items belonging to this type.
+    hardware_items = db.relationship(
+        "Hardware", back_populates="hardware_type", lazy="dynamic"
     )
 
     def __repr__(self) -> str:
-        return f"<HardwareType {self.type_name} ${self.estimated_cost}>"
+        return f"<HardwareType {self.type_name}>"
+
+
+class Hardware(db.Model):
+    """
+    Specific hardware item within a type (e.g., "Standard Laptop",
+    "Video Editing Laptop", "24-inch Monitor").
+
+    This mirrors how ``Software`` relates to ``SoftwareType``.
+    ``estimated_cost`` is the per-unit budgetary cost used in cost
+    calculations.  Cost changes are tracked in
+    ``budget.hardware_cost_history``.
+    """
+
+    __tablename__ = "hardware"
+    __table_args__ = {"schema": "equip"}
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    hardware_type_id = db.Column(
+        db.Integer,
+        db.ForeignKey("equip.hardware_type.id"),
+        nullable=False,
+        index=True,
+    )
+    name = db.Column(db.String(200), unique=True, nullable=False)
+    description = db.Column(db.String(500), nullable=True)
+    estimated_cost = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(
+        db.DateTime, nullable=False, server_default=db.text("SYSUTCDATETIME()")
+    )
+    updated_at = db.Column(
+        db.DateTime, nullable=False, server_default=db.text("SYSUTCDATETIME()")
+    )
+
+    # -- Relationships -----------------------------------------------------
+    # Parent hardware type category.
+    hardware_type = db.relationship("HardwareType", back_populates="hardware_items")
+    # Position requirements referencing this specific hardware item.
+    position_hardware = db.relationship(
+        "PositionHardware", back_populates="hardware", lazy="dynamic"
+    )
+
+    def __repr__(self) -> str:
+        return f"<Hardware {self.name} ${self.estimated_cost}>"
 
 
 class SoftwareType(db.Model):
@@ -136,12 +186,8 @@ class Software(db.Model):
         nullable=True,
         index=True,
     )
-    license_model = db.Column(
-        db.String(20), nullable=False, default="per_user"
-    )
-    cost_per_license = db.Column(
-        db.Numeric(12, 2), nullable=True, default=0
-    )
+    license_model = db.Column(db.String(20), nullable=False, default="per_user")
+    cost_per_license = db.Column(db.Numeric(12, 2), nullable=True, default=0)
     total_cost = db.Column(db.Numeric(14, 2), nullable=True, default=0)
     license_tier = db.Column(db.String(50), nullable=True)
     description = db.Column(db.String(500), nullable=True)
@@ -154,12 +200,8 @@ class Software(db.Model):
     )
 
     # -- Relationships -----------------------------------------------------
-    software_type = db.relationship(
-        "SoftwareType", back_populates="software"
-    )
-    software_family = db.relationship(
-        "SoftwareFamily", back_populates="software"
-    )
+    software_type = db.relationship("SoftwareType", back_populates="software")
+    software_family = db.relationship("SoftwareFamily", back_populates="software")
     position_software = db.relationship(
         "PositionSoftware", back_populates="software", lazy="dynamic"
     )
@@ -168,10 +210,7 @@ class Software(db.Model):
     )
 
     def __repr__(self) -> str:
-        return (
-            f"<Software {self.name} "
-            f"({self.license_model})>"
-        )
+        return f"<Software {self.name} " f"({self.license_model})>"
 
 
 class SoftwareCoverage(db.Model):
@@ -197,34 +236,13 @@ class SoftwareCoverage(db.Model):
     )
     scope_type = db.Column(db.String(20), nullable=False)
     department_id = db.Column(
-        db.Integer,
-        db.ForeignKey("org.department.id"),
-        nullable=True,
+        db.Integer, db.ForeignKey("org.department.id"), nullable=True
     )
-    division_id = db.Column(
-        db.Integer,
-        db.ForeignKey("org.division.id"),
-        nullable=True,
-    )
-    # created_at = db.Column(
-    #     db.DateTime, nullable=False, server_default=db.text("SYSUTCDATETIME()")
-    # )
-    position_id = db.Column(
-        db.Integer,
-        db.ForeignKey("org.position.id"),
-        nullable=True,
-    )
+    division_id = db.Column(db.Integer, db.ForeignKey("org.division.id"), nullable=True)
+    position_id = db.Column(db.Integer, db.ForeignKey("org.position.id"), nullable=True)
 
     # -- Relationships -----------------------------------------------------
-    software = db.relationship(
-        "Software", back_populates="coverage"
-    )
-    department = db.relationship("Department")
-    division = db.relationship("Division")
-    position = db.relationship("Position")
+    software = db.relationship("Software", back_populates="coverage")
 
     def __repr__(self) -> str:
-        return (
-            f"<SoftwareCoverage sw={self.software_id} "
-            f"scope={self.scope_type}>"
-        )
+        return f"<SoftwareCoverage sw={self.software_id} " f"scope={self.scope_type}>"

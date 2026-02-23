@@ -38,10 +38,7 @@
     </div>
 </div>
 
-{# ── Cost summary stat cards ── #}
-{# FIX 1.1: Changed total_hardware_cost → hardware_total, #}
-{# total_software_cost → software_total, total_cost → grand_total #}
-{# to match PositionCostSummary dataclass in cost_service.py #}
+{# ── Cost summary cards ── #}
 <div class="row g-3 mb-4">
     <div class="col-md-4">
         <div class="pm-card">
@@ -89,7 +86,8 @@
             <table class="table pm-table">
                 <thead>
                     <tr>
-                        <th>Hardware Type</th>
+                        <th>Hardware Item</th>
+                        <th>Type</th>
                         <th class="text-center">Qty / Person</th>
                         <th class="text-end">Unit Cost</th>
                         <th class="text-end">Line Total</th>
@@ -98,7 +96,10 @@
                 <tbody>
                     {% for line in cost_summary.hardware_lines %}
                     <tr>
-                        <td style="font-weight: 500;">{{ line.hardware_type_name }}</td>
+                        <td style="font-weight: 500;">{{ line.hardware_name }}</td>
+                        <td>
+                            <span class="pm-badge pm-badge-neutral">{{ line.hardware_type_name }}</span>
+                        </td>
                         <td class="text-center">{{ line.quantity }}</td>
                         <td class="text-end pm-cost">${{ "%.2f"|format(line.unit_cost) }}</td>
                         <td class="text-end pm-cost">${{ "%.2f"|format(line.line_total) }}</td>
@@ -127,8 +128,8 @@
                 <thead>
                     <tr>
                         <th>Software</th>
-                        <th class="text-center">License Model</th>
-                        <th class="text-center">Qty</th>
+                        <th>License</th>
+                        <th class="text-center">Qty / Person</th>
                         <th class="text-end">Unit Cost</th>
                         <th class="text-end">Line Total</th>
                     </tr>
@@ -137,11 +138,8 @@
                     {% for line in cost_summary.software_lines %}
                     <tr>
                         <td style="font-weight: 500;">{{ line.software_name }}</td>
-                        <td class="text-center">
-                            <span
-                                class="pm-badge {{ 'pm-badge-info' if line.license_model == 'per_user' else 'pm-badge-secondary' }}">
-                                {{ line.license_model | replace('_', ' ') | title }}
-                            </span>
+                        <td>
+                            <span class="pm-badge pm-badge-neutral">{{ line.license_model }}</span>
                         </td>
                         <td class="text-center">{{ line.quantity }}</td>
                         <td class="text-end pm-cost">${{ "%.2f"|format(line.unit_cost) }}</td>
@@ -156,6 +154,35 @@
             <p>No software requirements configured.</p>
         </div>
         {% endif %}
+    </div>
+</div>
+
+{# ── Per-person breakdown ── #}
+<div class="pm-card">
+    <div class="card-header">
+        <i class="bi bi-person me-2"></i>Per-Person Cost Breakdown
+    </div>
+    <div class="card-body">
+        <table class="table pm-table mb-0">
+            <tbody>
+                <tr>
+                    <td>Hardware per person</td>
+                    <td class="text-end pm-cost">${{ "%.2f"|format(cost_summary.hardware_total_per_person) }}</td>
+                </tr>
+                <tr>
+                    <td>Software per person</td>
+                    <td class="text-end pm-cost">${{ "%.2f"|format(cost_summary.software_total_per_person) }}</td>
+                </tr>
+                <tr class="table-active" style="font-weight: 600;">
+                    <td>Total per person</td>
+                    <td class="text-end pm-cost">${{ "%.2f"|format(cost_summary.total_per_person) }}</td>
+                </tr>
+                <tr>
+                    <td>× {{ position.authorized_count }} authorized</td>
+                    <td class="text-end pm-cost fw-bold">${{ "%.2f"|format(cost_summary.grand_total) }}</td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 </div>
 {% endblock %}

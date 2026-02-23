@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Hardware Types — PositionMatrix{% endblock %}
+
+{% block content %}
+<div class="pm-page-header">
+    <div>
+        <h1><i class="bi bi-tags me-2"></i>Hardware Types</h1>
+        <p>Manage hardware categories. Individual items within each type are managed in the
+            <a href="{{ url_for('equipment.hardware_list') }}">Hardware Catalog</a>.
+        </p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        {% if show_inactive %}
+        <a href="{{ url_for('equipment.hardware_type_list') }}" class="pm-btn pm-btn-secondary pm-btn-sm">
+            <i class="bi bi-eye-slash"></i>
+            Hide Inactive
+        </a>
+        {% else %}
+        <a href="{{ url_for('equipment.hardware_type_list', show_inactive='1') }}"
+            class="pm-btn pm-btn-secondary pm-btn-sm">
+            <i class="bi bi-eye"></i>
+            Show Inactive
+        </a>
+        {% endif %}
+        <a href="{{ url_for('equipment.hardware_list') }}" class="pm-btn pm-btn-secondary pm-btn-sm">
+            <i class="bi bi-cpu"></i>
+            Hardware Catalog
+        </a>
+        <a href="{{ url_for('equipment.hardware_type_create') }}" class="pm-btn pm-btn-primary pm-btn-sm">
+            <i class="bi bi-plus-lg"></i>
+            Add Hardware Type
+        </a>
+    </div>
+</div>
+
+<div class="pm-card">
+    <div class="table-responsive">
+        <table class="table pm-table">
+            <thead>
+                <tr>
+                    <th>Type Name</th>
+                    <th>Description</th>
+                    <th class="text-end">Ref. Cost</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for hw in hardware_types %}
+                <tr class="{{ 'pm-row-inactive' if not hw.is_active }}">
+                    <td style="font-weight: 500;">{{ hw.type_name }}</td>
+                    <td class="pm-text-muted">{{ hw.description or '—' }}</td>
+                    <td class="text-end pm-cost">${{ "%.2f"|format(hw.estimated_cost) }}</td>
+                    <td class="text-center">
+                        {% if hw.is_active %}
+                        <span class="pm-badge pm-badge-success">Active</span>
+                        {% else %}
+                        <span class="pm-badge pm-badge-neutral">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        {% if hw.is_active %}
+                        <div class="d-inline-flex gap-1">
+                            <a href="{{ url_for('equipment.hardware_type_edit', hw_type_id=hw.id) }}"
+                                class="pm-btn pm-btn-secondary pm-btn-sm" title="Edit this hardware type">
+                                <i class="bi bi-pencil"></i>
+                                Edit
+                            </a>
+                            <form method="post"
+                                action="{{ url_for('equipment.hardware_type_deactivate', hw_type_id=hw.id) }}"
+                                class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="pm-btn pm-btn-danger pm-btn-sm"
+                                    data-confirm="Deactivate this hardware type? Existing items under it will remain.">
+                                    <i class="bi bi-trash3"></i>
+                                </button>
+                            </form>
+                        </div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5">
+                        <div class="pm-empty-state">
+                            <i class="bi bi-tags d-block"></i>
+                            <p>No hardware types found. Click "Add Hardware Type" to get started.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

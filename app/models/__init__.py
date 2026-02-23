@@ -23,6 +23,7 @@ from app.models.organization import (  # noqa: F401
 
 # -- equip schema ----------------------------------------------------------
 from app.models.equipment import (  # noqa: F401
+    Hardware,
     HardwareType,
     Software,
     SoftwareCoverage,
@@ -50,6 +51,7 @@ from app.models.audit import AuditLog, HRSyncLog  # noqa: F401
 from app.models.budget import (  # noqa: F401
     AuthorizedCountHistory,
     CostSnapshot,
+    HardwareCostHistory,
     HardwareTypeCostHistory,
     RequirementHistory,
     SoftwareCostHistory,

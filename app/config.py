@@ -27,7 +27,7 @@ class BaseConfig:
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "DATABASE_URL",
         (
-            "mssql+pyodbc://@toc-pbi-svr-01\\SQLEXPRESS/PositionMatrix"
+            "mssql+pyodbc://@toc-pbi-svr-01\\SQLEXPRESS/PositionMatrixTest"
             "?driver=ODBC+Driver+18+for+SQL+Server"
             "&TrustServerCertificate=yes"
             "&Trusted_Connection=yes"
@@ -91,7 +91,7 @@ class TestingConfig(BaseConfig):
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "TEST_DATABASE_URL",
         (
-            "mssql+pyodbc://@localhost\\SQLEXPRESS/PositionMatrix"
+            "mssql+pyodbc://@localhost\\SQLEXPRESS/PositionMatrixTest"
             "?driver=ODBC+Driver+18+for+SQL+Server"
             "&TrustServerCertificate=yes"
             "&Trusted_Connection=yes"

@@ -2,9 +2,9 @@
 Equipment service — CRUD for the hardware and software catalog.
 
 Manages hardware types (generic categories like "Laptop", "Monitor"),
-software types (categories like "Productivity", "Security"), software
-families (tier groupings like "Microsoft 365"), and individual
-software products.
+hardware items (specific products like "Standard Laptop", "32-inch
+Monitor"), software types, software families, and individual software
+products.
 
 Cost changes are tracked in the budget schema history tables.
 """
@@ -14,8 +14,13 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from app.extensions import db
-from app.models.budget import HardwareTypeCostHistory, SoftwareCostHistory
+from app.models.budget import (
+    HardwareCostHistory,
+    HardwareTypeCostHistory,
+    SoftwareCostHistory,
+)
 from app.models.equipment import (
+    Hardware,
     HardwareType,
     Software,
     SoftwareCoverage,
@@ -28,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 # =========================================================================
-# Hardware Types
+# Hardware Types (categories)
 # =========================================================================
 
 
@@ -36,7 +41,7 @@ def get_hardware_types(include_inactive: bool = False) -> list[HardwareType]:
     """Return all hardware types ordered by name."""
     query = HardwareType.query.order_by(HardwareType.type_name)
     if not include_inactive:
-        query = query.filter(HardwareType.is_active == True)
+        query = query.filter(HardwareType.is_active == True)  # noqa: E712
     return query.all()
 
 
@@ -55,8 +60,8 @@ def create_hardware_type(
     Create a new hardware type and record the initial cost history.
 
     Args:
-        type_name:      Display name (e.g., "Standard Laptop").
-        estimated_cost: Budgetary cost for this hardware type.
+        type_name:      Display name (e.g., "Laptop").
+        estimated_cost: Reference cost for this hardware category.
         description:    Optional description.
         user_id:        ID of the user creating the record.
 
@@ -71,8 +76,8 @@ def create_hardware_type(
     db.session.add(hw_type)
     db.session.flush()
 
-    # Record initial cost in the history table.
-    _record_hardware_cost_history(hw_type, user_id=user_id)
+    # Record initial cost in the type-level history table.
+    _record_hardware_type_cost_history(hw_type, user_id=user_id)
 
     audit_service.log_change(
         user_id=user_id,
@@ -118,7 +123,7 @@ def update_hardware_type(
         "description": hw_type.description,
     }
 
-    # Track whether cost changed for history recording.
+    # Track whether the cost changed for history purposes.
     cost_changed = (
         estimated_cost is not None and estimated_cost != hw_type.estimated_cost
     )
@@ -131,10 +136,9 @@ def update_hardware_type(
         hw_type.description = description
     hw_type.updated_at = datetime.now(timezone.utc)
 
-    # Close the old cost history record and open a new one.
     if cost_changed:
-        _close_hardware_cost_history(hw_type)
-        _record_hardware_cost_history(hw_type, user_id=user_id)
+        _close_hardware_type_cost_history(hw_type)
+        _record_hardware_type_cost_history(hw_type, user_id=user_id)
 
     audit_service.log_change(
         user_id=user_id,
@@ -158,7 +162,12 @@ def deactivate_hardware_type(
     hw_type_id: int,
     user_id: int | None = None,
 ) -> HardwareType:
-    """Soft-delete a hardware type."""
+    """
+    Soft-delete a hardware type by setting ``is_active`` to False.
+
+    Raises:
+        ValueError: If the hardware type is not found.
+    """
     hw_type = get_hardware_type_by_id(hw_type_id)
     if hw_type is None:
         raise ValueError(f"Hardware type ID {hw_type_id} not found.")
@@ -168,21 +177,24 @@ def deactivate_hardware_type(
 
     audit_service.log_change(
         user_id=user_id,
-        action_type="DELETE",
+        action_type="DEACTIVATE",
         entity_type="equip.hardware_type",
         entity_id=hw_type.id,
-        previous_value={"is_active": True},
-        new_value={"is_active": False},
     )
     db.session.commit()
+
+    logger.info("Deactivated hardware type ID %d", hw_type_id)
     return hw_type
 
 
-def _record_hardware_cost_history(
+# -- Hardware type cost history helpers ------------------------------------
+
+
+def _record_hardware_type_cost_history(
     hw_type: HardwareType,
     user_id: int | None = None,
 ) -> None:
-    """Insert a new cost history row for a hardware type (no commit)."""
+    """Insert a new effective-dated cost row for a hardware type (no commit)."""
     history = HardwareTypeCostHistory(
         hardware_type_id=hw_type.id,
         estimated_cost=hw_type.estimated_cost,
@@ -191,10 +203,211 @@ def _record_hardware_cost_history(
     db.session.add(history)
 
 
-def _close_hardware_cost_history(hw_type: HardwareType) -> None:
-    """Set end_date on the current open cost history row (no commit)."""
+def _close_hardware_type_cost_history(hw_type: HardwareType) -> None:
+    """Set end_date on the current open type cost history row (no commit)."""
     current = HardwareTypeCostHistory.query.filter_by(
         hardware_type_id=hw_type.id, end_date=None
+    ).first()
+    if current:
+        current.end_date = datetime.now(timezone.utc)
+
+
+# =========================================================================
+# Hardware Items (specific products within a type)
+# =========================================================================
+
+
+def get_hardware_items(
+    include_inactive: bool = False,
+    hardware_type_id: int | None = None,
+) -> list[Hardware]:
+    """
+    Return hardware items, optionally filtered by type.
+
+    Args:
+        include_inactive:  If True, include deactivated items.
+        hardware_type_id:  Filter to a specific hardware category.
+
+    Returns:
+        List of Hardware records ordered by name.
+    """
+    query = Hardware.query.order_by(Hardware.name)
+    if not include_inactive:
+        query = query.filter(Hardware.is_active == True)  # noqa: E712
+    if hardware_type_id is not None:
+        query = query.filter(Hardware.hardware_type_id == hardware_type_id)
+    return query.all()
+
+
+def get_hardware_by_id(hardware_id: int) -> Hardware | None:
+    """Return a hardware item by primary key."""
+    return db.session.get(Hardware, hardware_id)
+
+
+def create_hardware(
+    name: str,
+    hardware_type_id: int,
+    estimated_cost: Decimal,
+    description: str | None = None,
+    user_id: int | None = None,
+) -> Hardware:
+    """
+    Create a new hardware item and record initial cost history.
+
+    Args:
+        name:              Display name (e.g., "Standard Laptop").
+        hardware_type_id:  FK to the parent hardware type category.
+        estimated_cost:    Budgetary cost per unit.
+        description:       Optional description.
+        user_id:           ID of the user creating the record.
+
+    Returns:
+        The newly created Hardware record.
+    """
+    hw = Hardware(
+        name=name,
+        hardware_type_id=hardware_type_id,
+        estimated_cost=estimated_cost,
+        description=description,
+    )
+    db.session.add(hw)
+    db.session.flush()
+
+    # Record initial cost in the item-level history table.
+    _record_hardware_cost_history(hw, user_id=user_id)
+
+    audit_service.log_change(
+        user_id=user_id,
+        action_type="CREATE",
+        entity_type="equip.hardware",
+        entity_id=hw.id,
+        new_value={
+            "name": name,
+            "hardware_type_id": hardware_type_id,
+            "estimated_cost": str(estimated_cost),
+            "description": description,
+        },
+    )
+    db.session.commit()
+
+    logger.info("Created hardware item: %s", name)
+    return hw
+
+
+def update_hardware(
+    hardware_id: int,
+    name: str | None = None,
+    hardware_type_id: int | None = None,
+    estimated_cost: Decimal | None = None,
+    description: str | None = None,
+    user_id: int | None = None,
+) -> Hardware:
+    """
+    Update an existing hardware item.  If the cost changes, a new
+    cost history record is created.
+
+    Returns:
+        The updated Hardware record.
+
+    Raises:
+        ValueError: If the hardware item is not found.
+    """
+    hw = get_hardware_by_id(hardware_id)
+    if hw is None:
+        raise ValueError(f"Hardware ID {hardware_id} not found.")
+
+    previous = {
+        "name": hw.name,
+        "hardware_type_id": hw.hardware_type_id,
+        "estimated_cost": str(hw.estimated_cost),
+        "description": hw.description,
+    }
+
+    # Track whether the cost changed for history purposes.
+    cost_changed = estimated_cost is not None and estimated_cost != hw.estimated_cost
+
+    if name is not None:
+        hw.name = name
+    if hardware_type_id is not None:
+        hw.hardware_type_id = hardware_type_id
+    if estimated_cost is not None:
+        hw.estimated_cost = estimated_cost
+    if description is not None:
+        hw.description = description
+    hw.updated_at = datetime.now(timezone.utc)
+
+    if cost_changed:
+        _close_hardware_cost_history(hw)
+        _record_hardware_cost_history(hw, user_id=user_id)
+
+    audit_service.log_change(
+        user_id=user_id,
+        action_type="UPDATE",
+        entity_type="equip.hardware",
+        entity_id=hw.id,
+        previous_value=previous,
+        new_value={
+            "name": hw.name,
+            "hardware_type_id": hw.hardware_type_id,
+            "estimated_cost": str(hw.estimated_cost),
+            "description": hw.description,
+        },
+    )
+    db.session.commit()
+
+    logger.info("Updated hardware item ID %d", hardware_id)
+    return hw
+
+
+def deactivate_hardware(
+    hardware_id: int,
+    user_id: int | None = None,
+) -> Hardware:
+    """
+    Soft-delete a hardware item by setting ``is_active`` to False.
+
+    Raises:
+        ValueError: If the hardware item is not found.
+    """
+    hw = get_hardware_by_id(hardware_id)
+    if hw is None:
+        raise ValueError(f"Hardware ID {hardware_id} not found.")
+
+    hw.is_active = False
+    hw.updated_at = datetime.now(timezone.utc)
+
+    audit_service.log_change(
+        user_id=user_id,
+        action_type="DEACTIVATE",
+        entity_type="equip.hardware",
+        entity_id=hw.id,
+    )
+    db.session.commit()
+
+    logger.info("Deactivated hardware item ID %d", hardware_id)
+    return hw
+
+
+# -- Hardware item cost history helpers ------------------------------------
+
+
+def _record_hardware_cost_history(
+    hw: Hardware,
+    user_id: int | None = None,
+) -> None:
+    """Insert a new effective-dated cost row for a hardware item (no commit)."""
+    history = HardwareCostHistory(
+        hardware_id=hw.id,
+        estimated_cost=hw.estimated_cost,
+        changed_by=user_id,
+    )
+    db.session.add(history)
+
+
+def _close_hardware_cost_history(hw: Hardware) -> None:
+    """Set end_date on the current open item cost history row (no commit)."""
+    current = HardwareCostHistory.query.filter_by(
+        hardware_id=hw.id, end_date=None
     ).first()
     if current:
         current.end_date = datetime.now(timezone.utc)
@@ -209,7 +422,7 @@ def get_software_types(include_inactive: bool = False) -> list[SoftwareType]:
     """Return all software type categories ordered by name."""
     query = SoftwareType.query.order_by(SoftwareType.type_name)
     if not include_inactive:
-        query = query.filter(SoftwareType.is_active == True)
+        query = query.filter(SoftwareType.is_active == True)  # noqa: E712
     return query.all()
 
 
@@ -271,7 +484,7 @@ def get_software_families(
     """Return all software families ordered by name."""
     query = SoftwareFamily.query.order_by(SoftwareFamily.family_name)
     if not include_inactive:
-        query = query.filter(SoftwareFamily.is_active == True)
+        query = query.filter(SoftwareFamily.is_active == True)  # noqa: E712
     return query.all()
 
 
@@ -301,7 +514,7 @@ def get_software_products(
     """
     query = Software.query.order_by(Software.name)
     if not include_inactive:
-        query = query.filter(Software.is_active == True)
+        query = query.filter(Software.is_active == True)  # noqa: E712
     if software_type_id is not None:
         query = query.filter(Software.software_type_id == software_type_id)
     return query.all()
@@ -408,19 +621,9 @@ def update_software(
     }
 
     # Apply updates from kwargs.
-    allowed_fields = {
-        "name",
-        "software_type_id",
-        "software_family_id",
-        "description",
-        "license_model",
-        "license_tier",
-        "cost_per_license",
-        "total_cost",
-    }
-    for field, value in kwargs.items():
-        if field in allowed_fields:
-            setattr(sw, field, value)
+    for field_name, value in kwargs.items():
+        if hasattr(sw, field_name):
+            setattr(sw, field_name, value)
     sw.updated_at = datetime.now(timezone.utc)
 
     if cost_changed:
@@ -443,7 +646,7 @@ def update_software(
     )
     db.session.commit()
 
-    logger.info("Updated software ID %d", software_id)
+    logger.info("Updated software product ID %d", software_id)
     return sw
 
 
@@ -451,7 +654,12 @@ def deactivate_software(
     software_id: int,
     user_id: int | None = None,
 ) -> Software:
-    """Soft-delete a software product."""
+    """
+    Soft-delete a software product.
+
+    Raises:
+        ValueError: If the software product is not found.
+    """
     sw = get_software_by_id(software_id)
     if sw is None:
         raise ValueError(f"Software ID {software_id} not found.")
@@ -461,21 +669,24 @@ def deactivate_software(
 
     audit_service.log_change(
         user_id=user_id,
-        action_type="DELETE",
+        action_type="DEACTIVATE",
         entity_type="equip.software",
         entity_id=sw.id,
-        previous_value={"is_active": True},
-        new_value={"is_active": False},
     )
     db.session.commit()
+
+    logger.info("Deactivated software ID %d", software_id)
     return sw
+
+
+# -- Software cost history helpers -----------------------------------------
 
 
 def _record_software_cost_history(
     sw: Software,
     user_id: int | None = None,
 ) -> None:
-    """Insert a new cost history row for a software product (no commit)."""
+    """Insert a new effective-dated cost row for a software product (no commit)."""
     history = SoftwareCostHistory(
         software_id=sw.id,
         cost_per_license=sw.cost_per_license,
@@ -492,56 +703,3 @@ def _close_software_cost_history(sw: Software) -> None:
     ).first()
     if current:
         current.end_date = datetime.now(timezone.utc)
-
-
-# =========================================================================
-# Software Coverage (tenant license scope definitions)
-# =========================================================================
-
-
-def get_coverage_for_software(software_id: int) -> list[SoftwareCoverage]:
-    """Return all coverage rows for a tenant-licensed software product."""
-    return SoftwareCoverage.query.filter_by(software_id=software_id).all()
-
-
-def set_software_coverage(
-    software_id: int,
-    coverage_rows: list[dict],
-    user_id: int | None = None,
-) -> list[SoftwareCoverage]:
-    """
-    Replace all coverage rows for a software product.
-
-    Args:
-        software_id:   The software product to update.
-        coverage_rows: List of dicts with ``scope_type`` and optional
-                       ``department_id``, ``division_id``, ``position_id``.
-        user_id:       ID of the user making the change.
-
-    Returns:
-        The new list of SoftwareCoverage records.
-    """
-    # Remove existing coverage rows.
-    SoftwareCoverage.query.filter_by(software_id=software_id).delete()
-
-    new_rows = []
-    for row_data in coverage_rows:
-        cov = SoftwareCoverage(
-            software_id=software_id,
-            scope_type=row_data["scope_type"],
-            department_id=row_data.get("department_id"),
-            division_id=row_data.get("division_id"),
-            position_id=row_data.get("position_id"),
-        )
-        db.session.add(cov)
-        new_rows.append(cov)
-
-    audit_service.log_change(
-        user_id=user_id,
-        action_type="UPDATE",
-        entity_type="equip.software_coverage",
-        entity_id=software_id,
-        new_value={"coverage": coverage_rows},
-    )
-    db.session.commit()
-    return new_rows
