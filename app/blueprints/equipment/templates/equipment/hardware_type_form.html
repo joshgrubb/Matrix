@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit' if mode == 'edit' else 'New' }} Hardware Type — PositionMatrix{% endblock %}
+
+{% block content %}
+<div class="pm-breadcrumb">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('equipment.hardware_type_list') }}">Hardware Types</a></li>
+            <li class="breadcrumb-item active">{{ 'Edit' if mode == 'edit' else 'New' }} Hardware Type</li>
+        </ol>
+    </nav>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="pm-card">
+            <div class="card-header">
+                <i class="bi bi-{{ 'pencil' if mode == 'edit' else 'plus-lg' }} me-2"></i>
+                {{ 'Edit' if mode == 'edit' else 'Add' }} Hardware Type
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    {# -- Type Name -- #}
+                    <div class="mb-3">
+                        <label for="type_name" class="pm-form-label">
+                            Type Name <span class="pm-required">*</span>
+                        </label>
+                        <input type="text" class="form-control" id="type_name" name="type_name"
+                            value="{{ form_data.get('type_name', '') or (hw_type.type_name if hw_type else '') }}"
+                            placeholder="e.g., Laptop, Monitor, MiFi" required>
+                        <div class="pm-form-hint">
+                            A short, recognizable name for this hardware category.
+                        </div>
+                    </div>
+
+                    {# -- Estimated Cost (reference) -- #}
+                    <div class="mb-3">
+                        <label for="estimated_cost" class="pm-form-label">
+                            Reference Cost
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="estimated_cost" name="estimated_cost"
+                                step="0.01" min="0"
+                                value="{{ form_data.get('estimated_cost', '') or (hw_type.estimated_cost if hw_type else '0.00') }}"
+                                required>
+                        </div>
+                        <div class="pm-form-hint">
+                            A reference cost for this category. Individual items under this
+                            type set their own cost for budgeting.
+                        </div>
+                    </div>
+
+                    {# -- Description -- #}
+                    <div class="mb-4">
+                        <label for="description" class="pm-form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"
+                            placeholder="Optional description of this hardware category">{{ form_data.get('description', '') or (hw_type.description if hw_type else '') }}</textarea>
+                    </div>
+
+                    {# -- Action buttons -- #}
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('equipment.hardware_type_list') }}" class="pm-btn pm-btn-secondary">
+                            Cancel
+                        </a>
+                        <button type="submit" class="pm-btn pm-btn-primary">
+                            <i class="bi bi-check-lg"></i>
+                            {{ 'Save Changes' if mode == 'edit' else 'Create Hardware Type' }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
