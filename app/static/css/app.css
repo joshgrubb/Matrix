@@ -187,7 +187,9 @@ code {
     z-index: 1040;
     overflow-y: auto;
     overflow-x: hidden;
-    transition: transform 0.3s var(--pm-ease);
+    transition: left 0.3s var(--pm-ease),
+        transform 0.3s var(--pm-ease),
+        visibility 0.3s;
 }
 
 /* Sidebar scrollbar — thin and unobtrusive. */
@@ -403,6 +405,19 @@ code {
     text-decoration: none;
 }
 
+/* -- Sidebar backdrop — hidden everywhere by default. ------------ */
+.pm-sidebar-backdrop {
+    display: none;
+    /* completely out of flex flow      */
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 1035;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.3s var(--pm-ease), visibility 0.3s;
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
    MOBILE TOP BAR (shown only on <992px)
@@ -463,33 +478,55 @@ code {
    ═══════════════════════════════════════════════════════════════════════ */
 
 @media (max-width: 991.98px) {
+
+    /* ── Switch layout to column so the mobile topbar stretches
+              full-width above .pm-main instead of shrinking into a
+              narrow vertical strip. ─────────────────────────────────── */
+    .pm-app-layout {
+        flex-direction: column;
+    }
+
+    /* ── Sidebar: slide off-screen via `left` + `transform` ─────── */
     .pm-sidebar {
+        left: calc(-1 * var(--pm-sidebar-width));
+        /* primary hide  */
         transform: translateX(-100%);
-    }
-
-    .pm-sidebar.show {
-        transform: translateX(0);
-    }
-
-    .pm-sidebar-backdrop {
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.4);
-        z-index: 1035;
-        opacity: 0;
+        /* belt-and-suspenders */
         visibility: hidden;
-        transition: opacity 0.3s var(--pm-ease), visibility 0.3s;
+        pointer-events: none;
+    }
+
+    /* ── Sidebar open state (JS toggles .show) ──────────────────── */
+    .pm-sidebar.show {
+        left: 0;
+        /* slide in      */
+        transform: translateX(0);
+        visibility: visible;
+        pointer-events: auto;
+        box-shadow: 8px 0 24px rgba(0, 0, 0, 0.25);
+        /* depth cue    */
+    }
+
+    /* ── Backdrop: enter render tree on mobile only ─────────────── */
+    .pm-sidebar-backdrop {
+        display: block;
+        /* opacity and visibility are still 0/hidden from the base
+           rule (Edit 2), so it stays invisible until .show is added
+           by app.js. */
     }
 
     .pm-sidebar-backdrop.show {
         opacity: 1;
         visibility: visible;
+        pointer-events: auto;
     }
 
+    /* ── Mobile top bar: reveal hamburger + brand ───────────────── */
     .pm-mobile-topbar {
         display: flex;
     }
 
+    /* ── Main content: remove sidebar gutter ────────────────────── */
     .pm-main {
         margin-left: 0;
     }
@@ -498,7 +535,6 @@ code {
         padding: 1.25rem 1rem;
     }
 }
-
 
 /* ═══════════════════════════════════════════════════════════════════════
    PAGE HEADER
