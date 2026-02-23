@@ -447,6 +447,292 @@ def software_deactivate(software_id):
         flash(str(exc), "danger")
     return redirect(url_for("equipment.software_list"))
 
+# =========================================================================
+# Software Types (categories)
+# =========================================================================
+
+
+@bp.route("/software-types")
+@login_required
+@role_required("admin", "it_staff")
+def software_type_list():
+    """
+    List all software type categories.
+
+    Supports an optional ``show_inactive`` query parameter to include
+    deactivated types in the listing.
+    """
+    show_inactive = request.args.get("show_inactive", "0") == "1"
+    sw_types = equipment_service.get_software_types(include_inactive=show_inactive)
+    return render_template(
+        "equipment/software_type_list.html",
+        software_types=sw_types,
+        show_inactive=show_inactive,
+    )
+
+
+@bp.route("/software-types/new", methods=["GET", "POST"])
+@login_required
+@role_required("admin", "it_staff")
+def software_type_create():
+    """
+    Create a new software type category.
+
+    GET:  Display the empty creation form.
+    POST: Validate input and create the record.
+    """
+    if request.method == "POST":
+        type_name = request.form.get("type_name", "").strip()
+        description = request.form.get("description", "").strip() or None
+
+        # Basic validation.
+        if not type_name:
+            flash("Type name is required.", "danger")
+            return render_template(
+                "equipment/software_type_form.html",
+                mode="create",
+                form_data=request.form,
+            )
+
+        try:
+            equipment_service.create_software_type(
+                type_name=type_name,
+                description=description,
+                user_id=current_user.id,
+            )
+            flash(f'Software type "{type_name}" created.', "success")
+            return redirect(url_for("equipment.software_type_list"))
+        except Exception:
+            logger.exception("Error creating software type")
+            flash(
+                "An error occurred while creating the software type. "
+                "Please try again.",
+                "danger",
+            )
+
+    return render_template(
+        "equipment/software_type_form.html",
+        mode="create",
+        form_data={},
+    )
+
+
+@bp.route("/software-types/<int:sw_type_id>/edit", methods=["GET", "POST"])
+@login_required
+@role_required("admin", "it_staff")
+def software_type_edit(sw_type_id):
+    """
+    Edit an existing software type category.
+
+    GET:  Populate the form with the current values.
+    POST: Validate and apply changes.
+    """
+    sw_type = equipment_service.get_software_type_by_id(sw_type_id)
+    if sw_type is None:
+        flash("Software type not found.", "warning")
+        return redirect(url_for("equipment.software_type_list"))
+
+    if request.method == "POST":
+        type_name = request.form.get("type_name", "").strip()
+        description = request.form.get("description", "").strip() or None
+
+        if not type_name:
+            flash("Type name is required.", "danger")
+            return render_template(
+                "equipment/software_type_form.html",
+                mode="edit",
+                software_type=sw_type,
+                form_data=request.form,
+            )
+
+        try:
+            equipment_service.update_software_type(
+                sw_type_id=sw_type_id,
+                type_name=type_name,
+                description=description,
+                user_id=current_user.id,
+            )
+            flash(f'Software type "{type_name}" updated.', "success")
+            return redirect(url_for("equipment.software_type_list"))
+        except Exception:
+            logger.exception("Error updating software type %d", sw_type_id)
+            flash(
+                "An error occurred while updating the software type. "
+                "Please try again.",
+                "danger",
+            )
+
+    return render_template(
+        "equipment/software_type_form.html",
+        mode="edit",
+        software_type=sw_type,
+        form_data={},
+    )
+
+
+@bp.route(
+    "/software-types/<int:sw_type_id>/deactivate",
+    methods=["POST"],
+)
+@login_required
+@role_required("admin", "it_staff")
+def software_type_deactivate(sw_type_id):
+    """Soft-delete a software type category."""
+    try:
+        equipment_service.deactivate_software_type(
+            sw_type_id=sw_type_id,
+            user_id=current_user.id,
+        )
+        flash("Software type deactivated.", "info")
+    except ValueError as exc:
+        flash(str(exc), "danger")
+    return redirect(url_for("equipment.software_type_list"))
+
+
+# =========================================================================
+# Software Families
+# =========================================================================
+
+
+@bp.route("/software-families")
+@login_required
+@role_required("admin", "it_staff")
+def software_family_list():
+    """
+    List all software families.
+
+    Supports an optional ``show_inactive`` query parameter to include
+    deactivated families in the listing.
+    """
+    show_inactive = request.args.get("show_inactive", "0") == "1"
+    families = equipment_service.get_software_families(include_inactive=show_inactive)
+    return render_template(
+        "equipment/software_family_list.html",
+        software_families=families,
+        show_inactive=show_inactive,
+    )
+
+
+@bp.route("/software-families/new", methods=["GET", "POST"])
+@login_required
+@role_required("admin", "it_staff")
+def software_family_create():
+    """
+    Create a new software family.
+
+    GET:  Display the empty creation form.
+    POST: Validate input and create the record.
+    """
+    if request.method == "POST":
+        family_name = request.form.get("family_name", "").strip()
+        description = request.form.get("description", "").strip() or None
+
+        # Basic validation.
+        if not family_name:
+            flash("Family name is required.", "danger")
+            return render_template(
+                "equipment/software_family_form.html",
+                mode="create",
+                form_data=request.form,
+            )
+
+        try:
+            equipment_service.create_software_family(
+                family_name=family_name,
+                description=description,
+                user_id=current_user.id,
+            )
+            flash(f'Software family "{family_name}" created.', "success")
+            return redirect(url_for("equipment.software_family_list"))
+        except Exception:
+            logger.exception("Error creating software family")
+            flash(
+                "An error occurred while creating the software family. "
+                "Please try again.",
+                "danger",
+            )
+
+    return render_template(
+        "equipment/software_family_form.html",
+        mode="create",
+        form_data={},
+    )
+
+
+@bp.route(
+    "/software-families/<int:family_id>/edit",
+    methods=["GET", "POST"],
+)
+@login_required
+@role_required("admin", "it_staff")
+def software_family_edit(family_id):
+    """
+    Edit an existing software family.
+
+    GET:  Populate the form with the current values.
+    POST: Validate and apply changes.
+    """
+    family = equipment_service.get_software_family_by_id(family_id)
+    if family is None:
+        flash("Software family not found.", "warning")
+        return redirect(url_for("equipment.software_family_list"))
+
+    if request.method == "POST":
+        family_name = request.form.get("family_name", "").strip()
+        description = request.form.get("description", "").strip() or None
+
+        if not family_name:
+            flash("Family name is required.", "danger")
+            return render_template(
+                "equipment/software_family_form.html",
+                mode="edit",
+                software_family=family,
+                form_data=request.form,
+            )
+
+        try:
+            equipment_service.update_software_family(
+                family_id=family_id,
+                family_name=family_name,
+                description=description,
+                user_id=current_user.id,
+            )
+            flash(f'Software family "{family_name}" updated.', "success")
+            return redirect(url_for("equipment.software_family_list"))
+        except Exception:
+            logger.exception("Error updating software family %d", family_id)
+            flash(
+                "An error occurred while updating the software family. "
+                "Please try again.",
+                "danger",
+            )
+
+    return render_template(
+        "equipment/software_family_form.html",
+        mode="edit",
+        software_family=family,
+        form_data={},
+    )
+
+
+@bp.route(
+    "/software-families/<int:family_id>/deactivate",
+    methods=["POST"],
+)
+@login_required
+@role_required("admin", "it_staff")
+def software_family_deactivate(family_id):
+    """Soft-delete a software family."""
+    try:
+        equipment_service.deactivate_software_family(
+            family_id=family_id,
+            user_id=current_user.id,
+        )
+        flash("Software family deactivated.", "info")
+    except ValueError as exc:
+        flash(str(exc), "danger")
+    return redirect(url_for("equipment.software_family_list"))
+
 
 # =========================================================================
 # Helpers

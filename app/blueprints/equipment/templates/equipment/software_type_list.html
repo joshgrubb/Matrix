@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Software Types — PositionMatrix{% endblock %}
+
+{% block content %}
+<div class="pm-page-header">
+    <div>
+        <h1><i class="bi bi-bookmark-star me-2"></i>Software Types</h1>
+        <p>Manage software categories (e.g., Productivity, Security, GIS). Individual products
+            within each type are managed in the
+            <a href="{{ url_for('equipment.software_list') }}">Software Catalog</a>.
+        </p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        {% if show_inactive %}
+        <a href="{{ url_for('equipment.software_type_list') }}" class="pm-btn pm-btn-secondary pm-btn-sm">
+            <i class="bi bi-eye-slash"></i>
+            Hide Inactive
+        </a>
+        {% else %}
+        <a href="{{ url_for('equipment.software_type_list', show_inactive='1') }}"
+            class="pm-btn pm-btn-secondary pm-btn-sm">
+            <i class="bi bi-eye"></i>
+            Show Inactive
+        </a>
+        {% endif %}
+        <a href="{{ url_for('equipment.software_list') }}" class="pm-btn pm-btn-secondary pm-btn-sm">
+            <i class="bi bi-window-stack"></i>
+            Software Catalog
+        </a>
+        <a href="{{ url_for('equipment.software_type_create') }}" class="pm-btn pm-btn-primary pm-btn-sm">
+            <i class="bi bi-plus-lg"></i>
+            Add Software Type
+        </a>
+    </div>
+</div>
+
+<div class="pm-card">
+    <div class="table-responsive">
+        <table class="table pm-table">
+            <thead>
+                <tr>
+                    <th>Type Name</th>
+                    <th>Description</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for st in software_types %}
+                <tr class="{{ 'pm-row-inactive' if not st.is_active }}">
+                    <td style="font-weight: 500;">{{ st.type_name }}</td>
+                    <td class="pm-text-muted">{{ st.description or '—' }}</td>
+                    <td class="text-center">
+                        {% if st.is_active %}
+                        <span class="pm-badge pm-badge-success">Active</span>
+                        {% else %}
+                        <span class="pm-badge pm-badge-neutral">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        {% if st.is_active %}
+                        <div class="d-inline-flex gap-1">
+                            <a href="{{ url_for('equipment.software_type_edit', sw_type_id=st.id) }}"
+                                class="pm-btn pm-btn-secondary pm-btn-sm" title="Edit this software type">
+                                <i class="bi bi-pencil"></i>
+                                Edit
+                            </a>
+                            <form method="post"
+                                action="{{ url_for('equipment.software_type_deactivate', sw_type_id=st.id) }}"
+                                class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="pm-btn pm-btn-danger pm-btn-sm"
+                                    data-confirm="Deactivate this software type? Existing products under it will remain.">
+                                    <i class="bi bi-trash3"></i>
+                                </button>
+                            </form>
+                        </div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4">
+                        <div class="pm-empty-state">
+                            <i class="bi bi-bookmark-star d-block"></i>
+                            <p>No software types found. Click "Add Software Type" to get started.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

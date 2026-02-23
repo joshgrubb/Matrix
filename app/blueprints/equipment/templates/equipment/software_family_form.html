@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit' if mode == 'edit' else 'New' }} Software Family — PositionMatrix{% endblock %}
+
+{% block content %}
+<div class="pm-breadcrumb">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{{ url_for('equipment.software_family_list') }}">Software Families</a>
+            </li>
+            <li class="breadcrumb-item active">
+                {{ 'Edit' if mode == 'edit' else 'New' }} Software Family
+            </li>
+        </ol>
+    </nav>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="pm-card">
+            <div class="card-header">
+                <i class="bi bi-{{ 'pencil' if mode == 'edit' else 'plus-lg' }} me-2"></i>
+                {{ 'Edit' if mode == 'edit' else 'Add' }} Software Family
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    {# -- Family Name -- #}
+                    <div class="mb-3">
+                        <label for="family_name" class="pm-form-label">
+                            Family Name <span class="pm-required">*</span>
+                        </label>
+                        <input type="text" class="form-control" id="family_name" name="family_name"
+                            value="{{ form_data.get('family_name', '') or (software_family.family_name if software_family is defined and software_family else '') }}"
+                            placeholder="e.g., Microsoft 365, Adobe Creative Cloud" required>
+                        <div class="pm-form-hint">
+                            A product family that groups related tiers or editions together.
+                        </div>
+                    </div>
+
+                    {# -- Description -- #}
+                    <div class="mb-4">
+                        <label for="description" class="pm-form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"
+                            placeholder="Optional description of this software family">{{ form_data.get('description', '') or (software_family.description if software_family is defined and software_family else '') }}</textarea>
+                    </div>
+
+                    {# -- Action buttons -- #}
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('equipment.software_family_list') }}" class="pm-btn pm-btn-secondary">
+                            Cancel
+                        </a>
+                        <button type="submit" class="pm-btn pm-btn-primary">
+                            <i class="bi bi-check-lg"></i>
+                            {{ 'Save Changes' if mode == 'edit' else 'Create Software Family' }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

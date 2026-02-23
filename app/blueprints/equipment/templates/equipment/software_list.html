@@ -20,6 +20,14 @@
             Show Inactive
         </a>
         {% endif %}
+        <a href="{{ url_for('equipment.software_type_list') }}" class="pm-btn pm-btn-secondary pm-btn-sm">
+            <i class="bi bi-bookmark-star"></i>
+            Manage Types
+        </a>
+        <a href="{{ url_for('equipment.software_family_list') }}" class="pm-btn pm-btn-secondary pm-btn-sm">
+            <i class="bi bi-collection"></i>
+            Manage Families
+        </a>
         <a href="{{ url_for('equipment.software_create') }}" class="pm-btn pm-btn-primary pm-btn-sm">
             <i class="bi bi-plus-lg"></i>
             Add Software
@@ -58,6 +66,7 @@
                 <tr>
                     <th>Name</th>
                     <th>Category</th>
+                    <th>Family</th>
                     <th class="text-center">License Model</th>
                     <th>Tier</th>
                     <th class="text-end">Cost</th>
@@ -70,6 +79,7 @@
                 <tr class="{{ 'pm-row-inactive' if not sw.is_active }}">
                     <td style="font-weight: 500;">{{ sw.name }}</td>
                     <td class="pm-text-muted">{{ sw.software_type.type_name if sw.software_type else '—' }}</td>
+                    <td class="pm-text-muted">{{ sw.software_family.family_name if sw.software_family else '—' }}</td>
                     <td class="text-center">
                         {% if sw.license_model == 'per_user' %}
                         <span class="pm-badge pm-badge-info">Per-User</span>
@@ -117,7 +127,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="7">
+                    <td colspan="8">
                         <div class="pm-empty-state">
                             <i class="bi bi-window-stack d-block"></i>
                             <p>No software products found. Click "Add Software" to get started.</p>

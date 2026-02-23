@@ -473,6 +473,46 @@ def update_software_type(
     return sw_type
 
 
+def deactivate_software_type(
+    sw_type_id: int,
+    user_id: int | None = None,
+) -> SoftwareType:
+    """
+    Soft-delete a software type category.
+
+    Existing software products referencing this type will retain
+    their foreign key but the type will no longer appear in active
+    lists or dropdowns.
+
+    Args:
+        sw_type_id: Primary key of the software type to deactivate.
+        user_id:    ID of the user performing the action.
+
+    Returns:
+        The deactivated SoftwareType record.
+
+    Raises:
+        ValueError: If the software type is not found.
+    """
+    sw_type = get_software_type_by_id(sw_type_id)
+    if sw_type is None:
+        raise ValueError(f"Software type ID {sw_type_id} not found.")
+
+    sw_type.is_active = False
+    sw_type.updated_at = datetime.now(timezone.utc)
+
+    audit_service.log_change(
+        user_id=user_id,
+        action_type="DEACTIVATE",
+        entity_type="equip.software_type",
+        entity_id=sw_type.id,
+    )
+    db.session.commit()
+
+    logger.info("Deactivated software type ID %d", sw_type_id)
+    return sw_type
+
+
 # =========================================================================
 # Software Families
 # =========================================================================
@@ -491,6 +531,126 @@ def get_software_families(
 def get_software_family_by_id(family_id: int) -> SoftwareFamily | None:
     """Return a software family by primary key."""
     return db.session.get(SoftwareFamily, family_id)
+
+
+def create_software_family(
+    family_name: str,
+    description: str | None = None,
+    user_id: int | None = None,
+) -> SoftwareFamily:
+    """
+    Create a new software family grouping.
+
+    Args:
+        family_name: Display name (e.g., "Microsoft 365").
+        description: Optional description.
+        user_id:     ID of the user creating the record.
+
+    Returns:
+        The newly created SoftwareFamily record.
+    """
+    family = SoftwareFamily(family_name=family_name, description=description)
+    db.session.add(family)
+    db.session.flush()
+
+    audit_service.log_change(
+        user_id=user_id,
+        action_type="CREATE",
+        entity_type="equip.software_family",
+        entity_id=family.id,
+        new_value={"family_name": family_name, "description": description},
+    )
+    db.session.commit()
+
+    logger.info("Created software family: %s", family_name)
+    return family
+
+
+def update_software_family(
+    family_id: int,
+    family_name: str | None = None,
+    description: str | None = None,
+    user_id: int | None = None,
+) -> SoftwareFamily:
+    """
+    Update an existing software family.
+
+    Args:
+        family_id:   Primary key of the family to update.
+        family_name: New display name (or None to keep current).
+        description: New description (or None to keep current).
+        user_id:     ID of the user performing the update.
+
+    Returns:
+        The updated SoftwareFamily record.
+
+    Raises:
+        ValueError: If the software family is not found.
+    """
+    family = get_software_family_by_id(family_id)
+    if family is None:
+        raise ValueError(f"Software family ID {family_id} not found.")
+
+    if family_name is not None:
+        family.family_name = family_name
+    if description is not None:
+        family.description = description
+    family.updated_at = datetime.now(timezone.utc)
+
+    audit_service.log_change(
+        user_id=user_id,
+        action_type="UPDATE",
+        entity_type="equip.software_family",
+        entity_id=family.id,
+        new_value={
+            "family_name": family.family_name,
+            "description": family.description,
+        },
+    )
+    db.session.commit()
+
+    logger.info("Updated software family ID %d", family_id)
+    return family
+
+
+def deactivate_software_family(
+    family_id: int,
+    user_id: int | None = None,
+) -> SoftwareFamily:
+    """
+    Soft-delete a software family.
+
+    Existing software products referencing this family will retain
+    their foreign key but the family will no longer appear in active
+    lists or dropdowns.
+
+    Args:
+        family_id: Primary key of the family to deactivate.
+        user_id:   ID of the user performing the action.
+
+    Returns:
+        The deactivated SoftwareFamily record.
+
+    Raises:
+        ValueError: If the software family is not found.
+    """
+    family = get_software_family_by_id(family_id)
+    if family is None:
+        raise ValueError(f"Software family ID {family_id} not found.")
+
+    family.is_active = False
+    family.updated_at = datetime.now(timezone.utc)
+
+    audit_service.log_change(
+        user_id=user_id,
+        action_type="DEACTIVATE",
+        entity_type="equip.software_family",
+        entity_id=family.id,
+    )
+    db.session.commit()
+
+    logger.info("Deactivated software family ID %d", family_id)
+    return family
 
 
 # =========================================================================

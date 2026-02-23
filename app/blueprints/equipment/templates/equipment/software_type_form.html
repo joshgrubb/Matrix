@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit' if mode == 'edit' else 'New' }} Software Type — PositionMatrix{% endblock %}
+
+{% block content %}
+<div class="pm-breadcrumb">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{{ url_for('equipment.software_type_list') }}">Software Types</a>
+            </li>
+            <li class="breadcrumb-item active">
+                {{ 'Edit' if mode == 'edit' else 'New' }} Software Type
+            </li>
+        </ol>
+    </nav>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="pm-card">
+            <div class="card-header">
+                <i class="bi bi-{{ 'pencil' if mode == 'edit' else 'plus-lg' }} me-2"></i>
+                {{ 'Edit' if mode == 'edit' else 'Add' }} Software Type
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    {# -- Type Name -- #}
+                    <div class="mb-3">
+                        <label for="type_name" class="pm-form-label">
+                            Type Name <span class="pm-required">*</span>
+                        </label>
+                        <input type="text" class="form-control" id="type_name" name="type_name"
+                            value="{{ form_data.get('type_name', '') or (software_type.type_name if software_type is defined and software_type else '') }}"
+                            placeholder="e.g., Productivity, Security, GIS, Finance" required>
+                        <div class="pm-form-hint">
+                            A short category label for grouping software products.
+                        </div>
+                    </div>
+
+                    {# -- Description -- #}
+                    <div class="mb-4">
+                        <label for="description" class="pm-form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"
+                            placeholder="Optional description of this software type">{{ form_data.get('description', '') or (software_type.description if software_type is defined and software_type else '') }}</textarea>
+                    </div>
+
+                    {# -- Action buttons -- #}
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('equipment.software_type_list') }}" class="pm-btn pm-btn-secondary">
+                            Cancel
+                        </a>
+                        <button type="submit" class="pm-btn pm-btn-primary">
+                            <i class="bi bi-check-lg"></i>
+                            {{ 'Save Changes' if mode == 'edit' else 'Create Software Type' }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
