@@ -41,9 +41,25 @@
             <tbody>
                 {% for log in sync_logs.items %}
                 <tr>
-                    <td><small>{{ log.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</small></td>
-                    <td><small>{{ log.completed_at.strftime('%Y-%m-%d %H:%M:%S') if log.completed_at else '—' }}</small>
+                    {# Started #}
+                    <td>
+                        <small class="utc-to-local" data-utc="{{ log.started_at.isoformat() }}Z">
+                            {{ log.started_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC
+                        </small>
                     </td>
+
+                    {# Completed #}
+                    <td>
+                        {% if log.completed_at %}
+                        <small class="utc-to-local" data-utc="{{ log.completed_at.isoformat() }}Z">
+                            {{ log.completed_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC
+                        </small>
+                        {% else %}
+                        <span class="pm-text-muted">—</span>
+                        {% endif %}
+                    </td>
+
+                    {# Status #}
                     <td class="text-center">
                         {% if log.status == 'completed' %}
                         <span class="pm-badge pm-badge-success">Completed</span>
@@ -55,11 +71,20 @@
                         <span class="pm-badge pm-badge-neutral">{{ log.status }}</span>
                         {% endif %}
                     </td>
+
+                    {# Records #}
                     <td class="text-center">{{ log.records_processed or '—' }}</td>
+
+                    {# Triggered By #}
                     <td>
-                        {% if log.user %}{{ log.user.full_name }}
-                        {% else %}<span class="pm-text-muted">System</span>{% endif %}
+                        {% if log.user %}
+                        {{ log.user.full_name }}
+                        {% else %}
+                        <span class="pm-text-muted">System</span>
+                        {% endif %}
                     </td>
+
+                    {# Error #}
                     <td class="pm-text-muted">
                         <small>{{ log.error_message or '—' }}</small>
                     </td>
@@ -79,4 +104,28 @@
         {% endif %}
     </div>
 </div>
+
+{# ── UTC → Local Time Conversion Script ── #}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        document.querySelectorAll(".utc-to-local").forEach(function (el) {
+            const utcString = el.dataset.utc;
+
+            if (!utcString) return;
+
+            const utcDate = new Date(utcString);
+
+            if (!isNaN(utcDate)) {
+                el.textContent = utcDate.toLocaleString(undefined, {
+                    year: "numeric",
+                    month: "2-digit",
+                    day: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit"
+                });
+            }
+        });
+    });
+</script>
 {% endblock %}
