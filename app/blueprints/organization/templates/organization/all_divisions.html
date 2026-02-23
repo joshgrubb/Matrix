@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}All Divisions — PositionMatrix{% endblock %}
+{% block content %}
+<div class="pm-page-header">
+    <div>
+        <h1><i class="bi bi-collection me-2"></i>All Divisions</h1>
+        <p>Browse all divisions across the organization, filtered to your access scope.</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        {% if show_inactive %}
+        <a href="{{ url_for('organization.all_divisions', department_id=selected_department_id) }}"
+            class="pm-btn pm-btn-secondary pm-btn-sm">
+            <i class="bi bi-eye-slash"></i>
+            Hide Inactive
+        </a>
+        {% else %}
+        <a href="{{ url_for('organization.all_divisions', department_id=selected_department_id, show_inactive='1') }}"
+            class="pm-btn pm-btn-secondary pm-btn-sm">
+            <i class="bi bi-eye"></i>
+            Show Inactive
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+{# ── Department filter ── #}
+<div class="pm-card mb-3">
+    <div class="card-body py-2 px-3">
+        <form method="get" class="d-flex align-items-center gap-3">
+            {# Preserve show_inactive across filter changes #}
+            {% if show_inactive %}
+            <input type="hidden" name="show_inactive" value="1">
+            {% endif %}
+            <label for="department_id" class="pm-form-label mb-0" style="white-space: nowrap;">
+                Filter by Department
+            </label>
+            <select class="form-select form-select-sm" id="department_id" name="department_id"
+                onchange="this.form.submit()" style="max-width: 300px;">
+                <option value="">All Departments</option>
+                {% for dept in departments %}
+                <option value="{{ dept.id }}" {{ 'selected' if selected_department_id==dept.id }}>
+                    {{ dept.department_code }} — {{ dept.department_name }}
+                </option>
+                {% endfor %}
+            </select>
+            {% if selected_department_id %}
+            <a href="{{ url_for('organization.all_divisions', show_inactive='1' if show_inactive else None) }}"
+                class="pm-btn pm-btn-secondary pm-btn-sm">
+                <i class="bi bi-x-lg"></i>
+                Clear
+            </a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<div class="pm-card">
+    <div class="table-responsive">
+        <table class="table pm-table">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Division Name</th>
+                    <th>Department</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for div in divisions %}
+                <tr class="{{ 'pm-row-inactive' if not div.is_active }}">
+                    <td><code>{{ div.division_code }}</code></td>
+                    <td>{{ div.division_name }}</td>
+                    <td class="pm-text-muted">{{ div.department.department_name }}</td>
+                    <td class="text-center">
+                        {% if div.is_active %}
+                        <span class="pm-badge pm-badge-success">Active</span>
+                        {% else %}
+                        <span class="pm-badge pm-badge-neutral">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <a href="{{ url_for('organization.division_detail', division_id=div.id) }}"
+                            class="pm-btn pm-btn-secondary pm-btn-sm">
+                            <i class="bi bi-eye"></i>
+                            View Positions
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5">
+                        <div class="pm-empty-state">
+                            <i class="bi bi-collection d-block"></i>
+                            <p>No divisions found. Run an HR sync from the Admin panel to import your organization.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

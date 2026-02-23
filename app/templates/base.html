@@ -64,17 +64,38 @@
         <div class="pm-sidebar-section">Organization</div>
         <ul class="pm-sidebar-nav">
             <li>
-                <a class="pm-sidebar-link {% if request.endpoint and request.endpoint.startswith('organization.') %}active{% endif %}"
+                <a class="pm-sidebar-link {% if request.endpoint in ('organization.departments', 'organization.department_detail') %}active{% endif %}"
                     href="{{ url_for('organization.departments') }}">
                     <i class="bi bi-diagram-3"></i>
                     Departments
                 </a>
             </li>
             <li>
-                <a class="pm-sidebar-link {% if request.endpoint and request.endpoint.startswith('equipment.') %}active{% endif %}"
+                <a class="pm-sidebar-link {% if request.endpoint in ('organization.all_divisions', 'organization.division_detail') %}active{% endif %}"
+                    href="{{ url_for('organization.all_divisions') }}">
+                    <i class="bi bi-collection"></i>
+                    Divisions
+                </a>
+            </li>
+            <li>
+                <a class="pm-sidebar-link {% if request.endpoint in ('organization.all_positions',) %}active{% endif %}"
+                    href="{{ url_for('organization.all_positions') }}">
+                    <i class="bi bi-briefcase"></i>
+                    Positions
+                </a>
+            </li>
+            <li>
+                <a class="pm-sidebar-link {% if request.endpoint and request.endpoint.startswith('equipment.hardware') %}active{% endif %}"
                     href="{{ url_for('equipment.hardware_list') }}">
                     <i class="bi bi-cpu"></i>
-                    Equipment Catalog
+                    Hardware Catalog
+                </a>
+            </li>
+            <li>
+                <a class="pm-sidebar-link {% if request.endpoint and request.endpoint.startswith('equipment.software') %}active{% endif %}"
+                    href="{{ url_for('equipment.software_list') }}">
+                    <i class="bi bi-window-stack"></i>
+                    Software Catalog
                 </a>
             </li>
             <li>

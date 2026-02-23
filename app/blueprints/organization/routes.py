@@ -74,8 +74,89 @@ def division_detail(division_id):
 
 
 # =========================================================================
+# Flat list views — All Divisions / All Positions
+# =========================================================================
+
+
+@bp.route("/divisions")
+@login_required
+def all_divisions():
+    """
+    Flat list of all divisions visible to the current user.
+
+    Supports optional filtering by department and an inactive toggle.
+    Provides a single-page alternative to drilling through
+    Departments → Department Detail.
+    """
+    include_inactive = request.args.get("show_inactive", "0") == "1"
+    department_id = request.args.get("department_id", type=int)
+
+    # Departments for the filter dropdown (scope-filtered).
+    departments = organization_service.get_departments(current_user)
+
+    # Divisions list (scope-filtered, with optional department filter).
+    divisions = organization_service.get_divisions(
+        current_user,
+        department_id=department_id,
+        include_inactive=include_inactive,
+    )
+
+    return render_template(
+        "organization/all_divisions.html",
+        divisions=divisions,
+        departments=departments,
+        selected_department_id=department_id,
+        show_inactive=include_inactive,
+    )
+
+
+@bp.route("/positions")
+@login_required
+def all_positions():
+    """
+    Flat list of all positions visible to the current user.
+
+    Supports optional filtering by department and/or division,
+    plus an inactive toggle.  The division dropdown cascades from
+    the department selection via the existing HTMX endpoint.
+    """
+    include_inactive = request.args.get("show_inactive", "0") == "1"
+    department_id = request.args.get("department_id", type=int)
+    division_id = request.args.get("division_id", type=int)
+
+    # Departments for the filter dropdown (scope-filtered).
+    departments = organization_service.get_departments(current_user)
+
+    # Divisions for the filter dropdown — scoped to selected department
+    # if one is active, otherwise show all visible divisions.
+    divisions_for_dropdown = organization_service.get_divisions(
+        current_user,
+        department_id=department_id,
+    )
+
+    # Positions list (scope-filtered, with optional department/division filter).
+    positions = organization_service.get_positions(
+        current_user,
+        department_id=department_id,
+        division_id=division_id,
+        include_inactive=include_inactive,
+    )
+
+    return render_template(
+        "organization/all_positions.html",
+        positions=positions,
+        departments=departments,
+        divisions_for_dropdown=divisions_for_dropdown,
+        selected_department_id=department_id,
+        selected_division_id=division_id,
+        show_inactive=include_inactive,
+    )
+
+
+# =========================================================================
 # HTMX partial endpoints for dynamic dropdowns
 # =========================================================================
+
 
 @bp.route("/htmx/divisions/<int:department_id>")
 @login_required

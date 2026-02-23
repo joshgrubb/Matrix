@@ -7,13 +7,18 @@
         <p>Organization structure synced from NeoGov.</p>
     </div>
     <div class="d-flex align-items-center gap-2">
-        <div class="form-check form-switch mb-0">
-            <input class="form-check-input" type="checkbox" id="showInactive" {% if show_inactive %}checked{% endif %}
-                onchange="window.location.href='?show_inactive=' + (this.checked ? '1' : '0')">
-            <label class="form-check-label" for="showInactive" style="font-size: 0.85rem;">
-                Show inactive
-            </label>
-        </div>
+        {% if show_inactive %}
+        <a href="{{ url_for('organization.departments') }}" class="pm-btn pm-btn-secondary pm-btn-sm">
+            <i class="bi bi-eye-slash"></i>
+            Hide Inactive
+        </a>
+        {% else %}
+        <a href="{{ url_for('organization.departments', show_inactive='1') }}"
+            class="pm-btn pm-btn-secondary pm-btn-sm">
+            <i class="bi bi-eye"></i>
+            Show Inactive
+        </a>
+        {% endif %}
     </div>
 </div>
 
