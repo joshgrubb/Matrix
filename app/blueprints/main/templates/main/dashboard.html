@@ -13,7 +13,7 @@
 {# ── Quick-access feature cards ── #}
 <div class="row g-3 mb-4">
 
-    {# -- Organization card -- #}
+    {# -- Organization card — visible to all authenticated users -- #}
     <div class="col-md-6 col-lg-4">
         <div class="pm-card pm-card-hover h-100">
             <div class="pm-feature-card">
@@ -30,7 +30,8 @@
         </div>
     </div>
 
-    {# -- Requirements card -- #}
+    {# -- Requirements card — admin, IT staff, and managers only -- #}
+    {% if current_user.has_role('admin', 'it_staff', 'manager') %}
     <div class="col-md-6 col-lg-4">
         <div class="pm-card pm-card-hover h-100">
             <div class="pm-feature-card">
@@ -46,8 +47,9 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
-    {# -- Reports card -- #}
+    {# -- Reports card — visible to all authenticated users -- #}
     <div class="col-md-6 col-lg-4">
         <div class="pm-card pm-card-hover h-100">
             <div class="pm-feature-card">
@@ -69,7 +71,8 @@
 {# ── Secondary action cards ── #}
 <div class="row g-3">
 
-    {# -- Equipment Catalog -- #}
+    {# -- Equipment Catalog — admin and IT staff only -- #}
+    {% if current_user.has_role('admin', 'it_staff') %}
     <div class="col-md-6">
         <div class="pm-card">
             <div class="card-header">
@@ -92,9 +95,10 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
-    {# -- Admin panel (admin only) -- #}
-    {% if current_user.has_role('admin') %}
+    {# -- Admin panel — admin and IT staff -- #}
+    {% if current_user.has_role('admin', 'it_staff') %}
     <div class="col-md-6">
         <div class="pm-card">
             <div class="card-header">
@@ -102,13 +106,19 @@
             </div>
             <div class="card-body">
                 <p class="pm-text-muted mb-3">
+                    {% if current_user.has_role('admin') %}
                     Manage users, view audit logs, and trigger HR synchronization jobs.
+                    {% else %}
+                    View audit logs and trigger HR synchronization jobs.
+                    {% endif %}
                 </p>
                 <div class="d-flex flex-wrap gap-2">
+                    {% if current_user.has_role('admin') %}
                     <a href="{{ url_for('admin.manage_users') }}" class="pm-btn pm-btn-secondary pm-btn-sm">
                         <i class="bi bi-people"></i>
                         Users
                     </a>
+                    {% endif %}
                     <a href="{{ url_for('admin.audit_logs') }}" class="pm-btn pm-btn-secondary pm-btn-sm">
                         <i class="bi bi-journal-text"></i>
                         Audit Logs
