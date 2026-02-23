@@ -69,7 +69,9 @@
                 {% for log in logs.items %}
                 <tr>
                     <td>
-                        <small>{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</small>
+                        <small class="utc-to-local" data-utc="{{ log.created_at.isoformat() }}Z">
+                            {{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC
+                        </small>
                     </td>
                     <td>
                         {% if log.user %}
@@ -101,7 +103,6 @@
             </tbody>
         </table>
 
-        {# Pagination #}
         {% if logs.pages > 1 %}
         {% include "components/_pagination.html" %}
         {% endif %}
@@ -113,4 +114,29 @@
         {% endif %}
     </div>
 </div>
+
+{# ── UTC → Local Time Conversion Script ── #}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        document.querySelectorAll(".utc-to-local").forEach(function (el) {
+            const utcString = el.dataset.utc;
+
+            if (!utcString) return;
+
+            const utcDate = new Date(utcString);
+
+            if (!isNaN(utcDate)) {
+                el.textContent = utcDate.toLocaleString(undefined, {
+                    year: "numeric",
+                    month: "2-digit",
+                    day: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit"
+                });
+            }
+        });
+    });
+</script>
+
 {% endblock %}
