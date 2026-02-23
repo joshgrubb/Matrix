@@ -625,7 +625,7 @@ class NeoGovApiClient:
                     "status": pos.get("status", ""),
                     # NeoGov v1 does not provide authorized_count.
                     # Default to 1; adjust manually in-app as needed.
-                    "authorized_count": pos.get("authorizedCount", 1),
+                    "authorized_count": pos.get("authorizedFte", 1),
                 }
             )
 
