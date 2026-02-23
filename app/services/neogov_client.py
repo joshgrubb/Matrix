@@ -595,7 +595,8 @@ class NeoGovApiClient:
                 "details": {
                     "positionTitle": "...",
                     "division": {"code": "DIV001"},
-                    "department": {"code": "DEPT01"}
+                    "department": {"code": "DEPT01"},
+                    "authorizedFte": 3.0
                 }
             }
 
@@ -617,15 +618,21 @@ class NeoGovApiClient:
             details = pos.get("details") or {}
             division_obj = details.get("division") or {}
 
+            # authorizedFte is exposed in the /v1/positions/{code}
+            # detail endpoint, nested inside the "details" object.
+            # The API returns a float (FTE); convert to int for the
+            # Position.authorized_count column.  Default to 1 if the
+            # field is missing or null.
+            raw_fte = details.get("authorizedFte")
+            authorized_count = int(raw_fte) if raw_fte is not None else 1
+
             normalized.append(
                 {
                     "position_code": pos.get("code", ""),
                     "position_title": details.get("positionTitle", ""),
                     "division_code": division_obj.get("code", ""),
                     "status": pos.get("status", ""),
-                    # NeoGov v1 does not provide authorized_count.
-                    # Default to 1; adjust manually in-app as needed.
-                    "authorized_count": pos.get("authorizedFte", 1),
+                    "authorized_count": authorized_count,
                 }
             )
 
