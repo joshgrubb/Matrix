@@ -11,7 +11,7 @@
 </nav>
 
 <div class="row justify-content-center">
-    <div class="col-md-8 col-lg-6">
+    <div class="col-md-10 col-lg-8">
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
@@ -20,25 +20,28 @@
                 </h5>
             </div>
             <div class="card-body">
-                <form method="post">
+                <form method="post" id="softwareForm">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    {# ── Core fields ────────────────────────────────── #}
 
                     {# Name field. #}
                     <div class="mb-3">
                         <label for="name" class="form-label">Name <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="name" name="name"
-                               value="{{ form_data.get('name', '') or (software.name if software else '') }}"
-                               placeholder="e.g., Microsoft 365 E3" required>
+                            value="{{ form_data.get('name', '') or (software.name if software else '') }}"
+                            placeholder="e.g., Microsoft 365 E3" required>
                     </div>
 
                     {# Software type (category). #}
                     <div class="mb-3">
-                        <label for="software_type_id" class="form-label">Category <span class="text-danger">*</span></label>
+                        <label for="software_type_id" class="form-label">Category <span
+                                class="text-danger">*</span></label>
                         <select class="form-select" id="software_type_id" name="software_type_id" required>
                             <option value="">— Select —</option>
                             {% for st in software_types %}
-                            <option value="{{ st.id }}"
-                                {{ 'selected' if (form_data.get('software_type_id')|int == st.id) or (software and software.software_type_id == st.id) }}>
+                            <option value="{{ st.id }}" {{ 'selected' if (form_data.get('software_type_id')|int==st.id)
+                                or (software and software.software_type_id==st.id) }}>
                                 {{ st.type_name }}
                             </option>
                             {% endfor %}
@@ -49,19 +52,16 @@
                     <div class="mb-3">
                         <label class="form-label">License Model <span class="text-danger">*</span></label>
                         <div>
-                            {% set current_model = form_data.get('license_model', '') or (software.license_model if software else 'per_user') %}
+                            {% set current_model = form_data.get('license_model', '') or (software.license_model if
+                            software else 'per_user') %}
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="license_model"
-                                       id="model_per_user" value="per_user"
-                                       {{ 'checked' if current_model == 'per_user' }}
-                                       onchange="toggleCostFields()">
+                                <input class="form-check-input" type="radio" name="license_model" id="model_per_user"
+                                    value="per_user" {{ 'checked' if current_model=='per_user' }}>
                                 <label class="form-check-label" for="model_per_user">Per-User</label>
                             </div>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="license_model"
-                                       id="model_tenant" value="tenant"
-                                       {{ 'checked' if current_model == 'tenant' }}
-                                       onchange="toggleCostFields()">
+                                <input class="form-check-input" type="radio" name="license_model" id="model_tenant"
+                                    value="tenant" {{ 'checked' if current_model=='tenant' }}>
                                 <label class="form-check-label" for="model_tenant">Tenant</label>
                             </div>
                         </div>
@@ -73,8 +73,8 @@
                         <div class="input-group">
                             <span class="input-group-text">$</span>
                             <input type="number" class="form-control" id="cost_per_license" name="cost_per_license"
-                                   step="0.01" min="0"
-                                   value="{{ form_data.get('cost_per_license', '') or (software.cost_per_license if software and software.cost_per_license else '') }}">
+                                step="0.01" min="0"
+                                value="{{ form_data.get('cost_per_license', '') or (software.cost_per_license if software and software.cost_per_license else '') }}">
                         </div>
                         <div class="form-text">Annual cost per user license.</div>
                     </div>
@@ -84,19 +84,44 @@
                         <label for="total_cost" class="form-label">Total Annual Cost</label>
                         <div class="input-group">
                             <span class="input-group-text">$</span>
-                            <input type="number" class="form-control" id="total_cost" name="total_cost"
-                                   step="0.01" min="0"
-                                   value="{{ form_data.get('total_cost', '') or (software.total_cost if software and software.total_cost else '') }}">
+                            <input type="number" class="form-control" id="total_cost" name="total_cost" step="0.01"
+                                min="0"
+                                value="{{ form_data.get('total_cost', '') or (software.total_cost if software and software.total_cost else '') }}">
                         </div>
                         <div class="form-text">Total cost distributed across covered positions.</div>
                     </div>
+
+                    {# ── Coverage scope section (tenant only) ───────── #}
+                    <div id="coverageSection" class="mb-3" style="display: none;">
+                        <hr>
+                        <h6 class="mb-2">
+                            <i class="bi bi-diagram-3 me-1"></i>
+                            Coverage Scope
+                        </h6>
+                        <p class="form-text mb-3">
+                            Define which parts of the organization this tenant license
+                            covers. The total cost will be distributed across the
+                            authorized positions within these scopes.
+                        </p>
+
+                        {# Dynamic row container. #}
+                        <div id="coverageRows">
+                            {# Rows are inserted here by JavaScript. #}
+                        </div>
+
+                        <button type="button" class="btn btn-outline-secondary btn-sm mt-2" onclick="addCoverageRow()">
+                            <i class="bi bi-plus-lg me-1"></i>Add Coverage Scope
+                        </button>
+                    </div>
+
+                    {# ── Remaining optional fields ──────────────────── #}
 
                     {# License tier (optional). #}
                     <div class="mb-3">
                         <label for="license_tier" class="form-label">License Tier</label>
                         <input type="text" class="form-control" id="license_tier" name="license_tier"
-                               value="{{ form_data.get('license_tier', '') or (software.license_tier if software else '') }}"
-                               placeholder="e.g., E1, E3, E5, Basic, Pro">
+                            value="{{ form_data.get('license_tier', '') or (software.license_tier if software else '') }}"
+                            placeholder="e.g., E1, E3, E5, Basic, Pro">
                     </div>
 
                     {# Software family (optional). #}
@@ -105,8 +130,9 @@
                         <select class="form-select" id="software_family_id" name="software_family_id">
                             <option value="">— None —</option>
                             {% for fam in software_families %}
-                            <option value="{{ fam.id }}"
-                                {{ 'selected' if (form_data.get('software_family_id')|int == fam.id) or (software and software.software_family_id == fam.id) }}>
+                            <option value="{{ fam.id }}" {{ 'selected' if
+                                (form_data.get('software_family_id')|int==fam.id) or (software and
+                                software.software_family_id==fam.id) }}>
                                 {{ fam.family_name }}
                             </option>
                             {% endfor %}
@@ -117,7 +143,7 @@
                     <div class="mb-3">
                         <label for="description" class="form-label">Description</label>
                         <textarea class="form-control" id="description" name="description" rows="3"
-                                  placeholder="Optional description">{{ form_data.get('description', '') or (software.description if software else '') }}</textarea>
+                            placeholder="Optional description">{{ form_data.get('description', '') or (software.description if software else '') }}</textarea>
                     </div>
 
                     <div class="d-flex justify-content-between">
@@ -135,13 +161,261 @@
 
 {% block extra_js %}
 <script>
-    /** Toggle visibility of per-user vs. tenant cost input groups. */
+    /* ================================================================
+       Reference data for coverage scope selectors.
+
+       Serialized as JSON in the route and injected via tojson.
+       This avoids Jinja for-loops inside <script> tags which break
+       when entity names contain quotes, ampersands, or other chars
+       that Jinja's HTML autoescape mangles.
+       ================================================================ */
+
+    var DEPARTMENTS = {{ departments_json | tojson }};
+    var DIVISIONS = {{ divisions_json | tojson }};
+    var POSITIONS = {{ positions_json | tojson }};
+    var EXISTING_COVERAGE = {{ existing_coverage_json | tojson }};
+
+    /* Track the next row index for unique field names. */
+    var coverageRowIndex = 0;
+
+    /* ================================================================
+       Escape a plain-text string for safe insertion via innerHTML.
+       ================================================================ */
+    function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(text));
+        return div.innerHTML;
+    }
+
+    /* ================================================================
+       Toggle visibility of per-user vs. tenant cost input groups
+       and the coverage scope section.
+       ================================================================ */
     function toggleCostFields() {
-        const isPerUser = document.getElementById('model_per_user').checked;
+        var isPerUser = document.getElementById('model_per_user').checked;
+
+        /* Show/hide cost fields. */
         document.getElementById('perUserCostGroup').style.display = isPerUser ? 'block' : 'none';
         document.getElementById('tenantCostGroup').style.display = isPerUser ? 'none' : 'block';
+
+        /* Show/hide the coverage section. */
+        document.getElementById('coverageSection').style.display = isPerUser ? 'none' : 'block';
     }
-    // Run on page load to set initial state.
-    document.addEventListener('DOMContentLoaded', toggleCostFields);
+
+    /* ================================================================
+       Add a new coverage scope row to the form.
+       ================================================================ */
+    function addCoverageRow(scopeType, departmentId, divisionId, positionId) {
+        /* Default parameters for programmatic calls (restoring data). */
+        scopeType = scopeType || '';
+        departmentId = departmentId || '';
+        divisionId = divisionId || '';
+        positionId = positionId || '';
+
+        var idx = coverageRowIndex++;
+        var container = document.getElementById('coverageRows');
+
+        /* Build the row HTML. */
+        var row = document.createElement('div');
+        row.className = 'row g-2 mb-2 align-items-end coverage-row';
+        row.id = 'coverageRow_' + idx;
+        row.innerHTML =
+            '<div class="col-md-3">' +
+            '<label class="form-label form-label-sm">Scope Level</label>' +
+            '<select class="form-select form-select-sm"' +
+            '        name="coverage_scope_type_' + idx + '"' +
+            '        id="coverageScopeType_' + idx + '"' +
+            '        onchange="onScopeTypeChange(' + idx + ')" required>' +
+            '<option value="">— Select —</option>' +
+            '<option value="organization"' + (scopeType === 'organization' ? ' selected' : '') + '>Organization</option>' +
+            '<option value="department"' + (scopeType === 'department' ? ' selected' : '') + '>Department</option>' +
+            '<option value="division"' + (scopeType === 'division' ? ' selected' : '') + '>Division</option>' +
+            '<option value="position"' + (scopeType === 'position' ? ' selected' : '') + '>Position</option>' +
+            '</select>' +
+            '</div>' +
+            '<div class="col-md-7">' +
+            '<div id="coverageEntity_' + idx + '"></div>' +
+            '</div>' +
+            '<div class="col-md-2 text-end">' +
+            '<button type="button" class="btn btn-outline-danger btn-sm"' +
+            '        onclick="removeCoverageRow(' + idx + ')" title="Remove this scope">' +
+            '<i class="bi bi-trash"></i>' +
+            '</button>' +
+            '</div>';
+
+        container.appendChild(row);
+
+        /* If restoring existing data, trigger the scope type change
+           handler to render the correct entity selector. */
+        if (scopeType) {
+            onScopeTypeChange(idx, departmentId, divisionId, positionId);
+        }
+    }
+
+    /* ================================================================
+       Handle scope type dropdown change — show the matching entity
+       selector (department, division, or position dropdown).
+       ================================================================ */
+    function onScopeTypeChange(idx, preselectedDept, preselectedDiv, preselectedPos) {
+        var scopeType = document.getElementById('coverageScopeType_' + idx).value;
+        var entityContainer = document.getElementById('coverageEntity_' + idx);
+
+        /* Hidden fields that are always present (so the backend
+           receives all three keys for every row, even if blank). */
+        var hiddenDept = '<input type="hidden" name="coverage_department_id_' + idx + '" value="">';
+        var hiddenDiv = '<input type="hidden" name="coverage_division_id_' + idx + '" value="">';
+        var hiddenPos = '<input type="hidden" name="coverage_position_id_' + idx + '" value="">';
+
+        if (scopeType === 'organization') {
+            /* No entity selector needed — org-wide applies to all. */
+            entityContainer.innerHTML =
+                '<span class="form-text">Applies to all positions in the organization.</span>' +
+                hiddenDept + hiddenDiv + hiddenPos;
+
+        } else if (scopeType === 'department') {
+            /* Build department dropdown. */
+            var options = '<option value="">— Select Department —</option>';
+            DEPARTMENTS.forEach(function (dept) {
+                var sel = (preselectedDept && dept.id == preselectedDept) ? ' selected' : '';
+                options += '<option value="' + dept.id + '"' + sel + '>' +
+                    escapeHtml(dept.name) + '</option>';
+            });
+            entityContainer.innerHTML =
+                '<label class="form-label form-label-sm">Department</label>' +
+                '<select class="form-select form-select-sm"' +
+                '        name="coverage_department_id_' + idx + '" required>' +
+                options +
+                '</select>' +
+                hiddenDiv + hiddenPos;
+
+        } else if (scopeType === 'division') {
+            /* Build division dropdown (with parent dept for context). */
+            var options = '<option value="">— Select Division —</option>';
+            DIVISIONS.forEach(function (div) {
+                var sel = (preselectedDiv && div.id == preselectedDiv) ? ' selected' : '';
+                var parentDept = DEPARTMENTS.find(function (d) { return d.id === div.department_id; });
+                var label = parentDept ? parentDept.name + ' \u2192 ' + div.name : div.name;
+                options += '<option value="' + div.id + '"' + sel + '>' +
+                    escapeHtml(label) + '</option>';
+            });
+            entityContainer.innerHTML =
+                '<label class="form-label form-label-sm">Division</label>' +
+                '<select class="form-select form-select-sm"' +
+                '        name="coverage_division_id_' + idx + '" required>' +
+                options +
+                '</select>' +
+                hiddenDept + hiddenPos;
+
+        } else if (scopeType === 'position') {
+            /* Build position dropdown (with parent div for context). */
+            var options = '<option value="">— Select Position —</option>';
+            POSITIONS.forEach(function (pos) {
+                var sel = (preselectedPos && pos.id == preselectedPos) ? ' selected' : '';
+                var parentDiv = DIVISIONS.find(function (d) { return d.id === pos.division_id; });
+                var label = parentDiv ? parentDiv.name + ' \u2192 ' + pos.title : pos.title;
+                options += '<option value="' + pos.id + '"' + sel + '>' +
+                    escapeHtml(label) + '</option>';
+            });
+            entityContainer.innerHTML =
+                '<label class="form-label form-label-sm">Position</label>' +
+                '<select class="form-select form-select-sm"' +
+                '        name="coverage_position_id_' + idx + '" required>' +
+                options +
+                '</select>' +
+                hiddenDept + hiddenDiv;
+
+        } else {
+            /* No scope selected — render empty hidden fields. */
+            entityContainer.innerHTML = hiddenDept + hiddenDiv + hiddenPos;
+        }
+    }
+
+    /* ================================================================
+       Remove a coverage row from the form.
+       ================================================================ */
+    function removeCoverageRow(idx) {
+        var row = document.getElementById('coverageRow_' + idx);
+        if (row) {
+            row.remove();
+        }
+        reindexCoverageRows();
+    }
+
+    /* ================================================================
+       Re-index all remaining coverage rows so that the backend
+       parser receives sequential indices (0, 1, 2, …) with no gaps.
+       ================================================================ */
+    function reindexCoverageRows() {
+        var container = document.getElementById('coverageRows');
+        var rows = container.querySelectorAll('.coverage-row');
+
+        /* Reset the global index counter. */
+        coverageRowIndex = 0;
+
+        rows.forEach(function (row, newIdx) {
+            /* Update the row's own id. */
+            row.id = 'coverageRow_' + newIdx;
+
+            /* Update the scope type select. */
+            var scopeSelect = row.querySelector('[id^="coverageScopeType_"]');
+            if (scopeSelect) {
+                scopeSelect.id = 'coverageScopeType_' + newIdx;
+                scopeSelect.name = 'coverage_scope_type_' + newIdx;
+                scopeSelect.setAttribute('onchange', 'onScopeTypeChange(' + newIdx + ')');
+            }
+
+            /* Update entity container id. */
+            var entityDiv = row.querySelector('[id^="coverageEntity_"]');
+            if (entityDiv) {
+                entityDiv.id = 'coverageEntity_' + newIdx;
+            }
+
+            /* Update all hidden and select inputs inside entity container. */
+            var entityInputs = entityDiv ? entityDiv.querySelectorAll('input, select') : [];
+            entityInputs.forEach(function (input) {
+                if (input.name) {
+                    /* Replace the old index suffix with the new index. */
+                    input.name = input.name.replace(/_\d+$/, '_' + newIdx);
+                }
+            });
+
+            /* Update the remove button. */
+            var removeBtn = row.querySelector('button[onclick^="removeCoverageRow"]');
+            if (removeBtn) {
+                removeBtn.setAttribute('onclick', 'removeCoverageRow(' + newIdx + ')');
+            }
+
+            coverageRowIndex = newIdx + 1;
+        });
+    }
+
+    /* ================================================================
+       Initialization — runs on DOMContentLoaded.
+       ================================================================ */
+    document.addEventListener('DOMContentLoaded', function () {
+        /* Wire up the radio buttons for license model toggle.
+           Using addEventListener avoids the "not defined" error that
+           occurs when inline onchange fires before the script block
+           has finished parsing. */
+        var perUserRadio = document.getElementById('model_per_user');
+        var tenantRadio = document.getElementById('model_tenant');
+        if (perUserRadio) { perUserRadio.addEventListener('change', toggleCostFields); }
+        if (tenantRadio) { tenantRadio.addEventListener('change', toggleCostFields); }
+
+        /* Set initial visibility for cost fields and coverage section. */
+        toggleCostFields();
+
+        /* Restore existing coverage rows when editing. */
+        if (EXISTING_COVERAGE && EXISTING_COVERAGE.length > 0) {
+            EXISTING_COVERAGE.forEach(function (cov) {
+                addCoverageRow(
+                    cov.scope_type,
+                    cov.department_id,
+                    cov.division_id,
+                    cov.position_id
+                );
+            });
+        }
+    });
 </script>
 {% endblock %}

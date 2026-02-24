@@ -6,14 +6,16 @@ by the equipment service.
 """
 
 from decimal import Decimal, InvalidOperation
-
+import logging
 from flask import flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from app.blueprints.equipment import bp
 from app.decorators import role_required
 from app.services import equipment_service
+from app.models.organization import Department, Division, Position
 
+logger = logging.getLogger(__name__)
 
 # =========================================================================
 # Hardware Types (categories)
@@ -318,12 +320,18 @@ def software_list():
     )
     sw_types = equipment_service.get_software_types()
 
+    # Build coverage summaries for the list view.
+    coverage_summaries = {}
+    for sw in sw_products:
+        coverage_summaries[sw.id] = equipment_service.get_coverage_summary(sw)
+
     return render_template(
         "equipment/software_list.html",
         software_products=sw_products,
         software_types=sw_types,
         show_inactive=include_inactive,
         selected_type_id=sw_type_filter,
+        coverage_summaries=coverage_summaries,
     )
 
 
@@ -331,9 +339,27 @@ def software_list():
 @login_required
 @role_required("admin", "it_staff")
 def software_create():
-    """Create a new software product."""
+    """Create a new software product with optional coverage definitions."""
     sw_types = equipment_service.get_software_types()
     sw_families = equipment_service.get_software_families()
+
+    # Fetch org structure for coverage scope selectors.
+    departments = (
+        Department.query.filter_by(is_active=True)
+        .order_by(Department.department_name)
+        .all()
+    )
+    divisions = (
+        Division.query.filter_by(is_active=True).order_by(Division.division_name).all()
+    )
+    positions = (
+        Position.query.filter_by(is_active=True).order_by(Position.position_title).all()
+    )
+
+    # Serialize org data for the JavaScript coverage selectors.
+    departments_json, divisions_json, positions_json = _build_coverage_json(
+        departments, divisions, positions
+    )
 
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -355,11 +381,15 @@ def software_create():
                 software=None,
                 software_types=sw_types,
                 software_families=sw_families,
+                departments_json=departments_json,
+                divisions_json=divisions_json,
+                positions_json=positions_json,
+                existing_coverage_json=[],
                 form_data=request.form,
             )
 
         try:
-            equipment_service.create_software(
+            sw = equipment_service.create_software(
                 name=name,
                 software_type_id=sw_type_id,
                 license_model=license_model,
@@ -370,8 +400,21 @@ def software_create():
                 description=description,
                 user_id=current_user.id,
             )
+
+            # Save coverage rows if the license model is tenant.
+            if license_model == "tenant":
+                coverage_rows = _parse_coverage_form(request.form)
+                if coverage_rows:
+                    equipment_service.set_software_coverage(
+                        software_id=sw.id,
+                        coverage_rows=coverage_rows,
+                        user_id=current_user.id,
+                    )
+
             flash(f"Software '{name}' created.", "success")
             return redirect(url_for("equipment.software_list"))
+        except ValueError as exc:
+            flash(str(exc), "danger")
         except Exception as exc:  # pylint: disable=broad-exception-caught
             flash(f"Error creating software: {exc}", "danger")
 
@@ -381,6 +424,10 @@ def software_create():
         software=None,
         software_types=sw_types,
         software_families=sw_families,
+        departments_json=departments_json,
+        divisions_json=divisions_json,
+        positions_json=positions_json,
+        existing_coverage_json=[],
         form_data={},
     )
 
@@ -389,7 +436,7 @@ def software_create():
 @login_required
 @role_required("admin", "it_staff")
 def software_edit(software_id):
-    """Edit an existing software product."""
+    """Edit an existing software product and its coverage definitions."""
     sw = equipment_service.get_software_by_id(software_id)
     if sw is None:
         flash("Software product not found.", "warning")
@@ -398,14 +445,44 @@ def software_edit(software_id):
     sw_types = equipment_service.get_software_types()
     sw_families = equipment_service.get_software_families()
 
+    # Fetch org structure for coverage scope selectors.
+    departments = (
+        Department.query.filter_by(is_active=True)
+        .order_by(Department.department_name)
+        .all()
+    )
+    divisions = (
+        Division.query.filter_by(is_active=True).order_by(Division.division_name).all()
+    )
+    positions = (
+        Position.query.filter_by(is_active=True).order_by(Position.position_title).all()
+    )
+
+    # Serialize org data for the JavaScript coverage selectors.
+    departments_json, divisions_json, positions_json = _build_coverage_json(
+        departments, divisions, positions
+    )
+
+    # Serialize existing coverage rows for pre-population.
+    existing_coverage_json = [
+        {
+            "scope_type": cov.scope_type,
+            "department_id": cov.department_id,
+            "division_id": cov.division_id,
+            "position_id": cov.position_id,
+        }
+        for cov in (sw.coverage or [])
+    ]
+
     if request.method == "POST":
         kwargs = {
             "name": request.form.get("name", "").strip(),
             "software_type_id": request.form.get("software_type_id", type=int),
             "license_model": request.form.get("license_model", "per_user"),
             "license_tier": request.form.get("license_tier", "").strip() or None,
-            "software_family_id": request.form.get("software_family_id", type=int)
-            or None,
+            "software_family_id": (
+                request.form.get("software_family_id", type=int) or None
+            ),
             "description": request.form.get("description", "").strip() or None,
             "cost_per_license": _parse_decimal(request.form.get("cost_per_license")),
             "total_cost": _parse_decimal(request.form.get("total_cost")),
@@ -417,6 +494,24 @@ def software_edit(software_id):
                 user_id=current_user.id,
                 **kwargs,
             )
+
+            # Update coverage rows.
+            license_model = kwargs.get("license_model", "per_user")
+            if license_model == "tenant":
+                coverage_rows = _parse_coverage_form(request.form)
+                equipment_service.set_software_coverage(
+                    software_id=software_id,
+                    coverage_rows=coverage_rows,
+                    user_id=current_user.id,
+                )
+            else:
+                # Clear any leftover coverage if model switched to per_user.
+                equipment_service.set_software_coverage(
+                    software_id=software_id,
+                    coverage_rows=[],
+                    user_id=current_user.id,
+                )
+
             flash(f"Software '{sw.name}' updated.", "success")
             return redirect(url_for("equipment.software_list"))
         except ValueError as exc:
@@ -428,6 +523,10 @@ def software_edit(software_id):
         software=sw,
         software_types=sw_types,
         software_families=sw_families,
+        departments_json=departments_json,
+        divisions_json=divisions_json,
+        positions_json=positions_json,
+        existing_coverage_json=existing_coverage_json,
         form_data={},
     )
 
@@ -446,6 +545,160 @@ def software_deactivate(software_id):
     except ValueError as exc:
         flash(str(exc), "danger")
     return redirect(url_for("equipment.software_list"))
+
+
+# =========================================================================
+# Coverage helpers
+# =========================================================================
+
+
+def _build_coverage_json(
+    departments: list,
+    divisions: list,
+    positions: list,
+) -> tuple[list[dict], list[dict], list[dict]]:
+    """
+    Serialize org structure into plain dicts for safe JSON embedding.
+
+    SQLAlchemy model objects cannot be directly serialized with
+    ``tojson``.  This helper extracts only the fields the JavaScript
+    coverage selectors need, as plain Python dicts.
+
+    Args:
+        departments: List of Department model instances.
+        divisions:   List of Division model instances.
+        positions:   List of Position model instances.
+
+    Returns:
+        Tuple of (departments_json, divisions_json, positions_json)
+        where each element is a list of dicts ready for ``tojson``.
+    """
+    departments_json = [{"id": d.id, "name": d.department_name} for d in departments]
+    divisions_json = [
+        {
+            "id": d.id,
+            "name": d.division_name,
+            "department_id": d.department_id,
+        }
+        for d in divisions
+    ]
+    positions_json = [
+        {
+            "id": p.id,
+            "title": p.position_title,
+            "division_id": p.division_id,
+        }
+        for p in positions
+    ]
+    return departments_json, divisions_json, positions_json
+
+
+def _parse_coverage_form(form) -> list[dict]:
+    """
+    Parse software coverage rows from the form.
+
+    The form uses a dynamic row pattern with indexed field names:
+        coverage_scope_type_0    = 'organization'
+        coverage_department_id_0 = ''  (unused for org scope)
+        coverage_division_id_0   = ''
+        coverage_position_id_0   = ''
+
+        coverage_scope_type_1    = 'department'
+        coverage_department_id_1 = '5'
+        ...
+
+    Args:
+        form: The Flask request.form MultiDict.
+
+    Returns:
+        List of dicts suitable for ``equipment_service.set_software_coverage``.
+    """
+    rows = []
+    index = 0
+
+    while True:
+        scope_key = f"coverage_scope_type_{index}"
+        scope_type = form.get(scope_key, "").strip().lower()
+
+        # No more rows once we hit a missing index.
+        if not scope_type:
+            break
+
+        row = {"scope_type": scope_type}
+
+        if scope_type == "department":
+            dept_id = form.get(f"coverage_department_id_{index}", type=int)
+            row["department_id"] = dept_id
+        elif scope_type == "division":
+            div_id = form.get(f"coverage_division_id_{index}", type=int)
+            row["division_id"] = div_id
+        elif scope_type == "position":
+            pos_id = form.get(f"coverage_position_id_{index}", type=int)
+            row["position_id"] = pos_id
+        # 'organization' scope requires no additional FK.
+
+        rows.append(row)
+        index += 1
+
+    logger.debug("Parsed %d coverage rows from form", len(rows))
+    return rows
+
+
+# =========================================================================
+# Coverage form parsing helper
+# =========================================================================
+
+
+def _parse_coverage_form(form) -> list[dict]:
+    """
+    Parse software coverage rows from the form.
+
+    The form uses a dynamic row pattern with indexed field names:
+        coverage_scope_type_0   = 'organization'
+        coverage_department_id_0 = ''  (unused for org scope)
+        coverage_division_id_0   = ''
+        coverage_position_id_0   = ''
+
+        coverage_scope_type_1   = 'department'
+        coverage_department_id_1 = '5'
+        ...
+
+    Args:
+        form: The Flask request.form MultiDict.
+
+    Returns:
+        List of dicts suitable for ``equipment_service.set_software_coverage``.
+    """
+    rows = []
+    index = 0
+
+    while True:
+        scope_key = f"coverage_scope_type_{index}"
+        scope_type = form.get(scope_key, "").strip().lower()
+
+        # No more rows once we hit a missing index.
+        if not scope_type:
+            break
+
+        row = {"scope_type": scope_type}
+
+        if scope_type == "department":
+            dept_id = form.get(f"coverage_department_id_{index}", type=int)
+            row["department_id"] = dept_id
+        elif scope_type == "division":
+            div_id = form.get(f"coverage_division_id_{index}", type=int)
+            row["division_id"] = div_id
+        elif scope_type == "position":
+            pos_id = form.get(f"coverage_position_id_{index}", type=int)
+            row["position_id"] = pos_id
+        # 'organization' scope requires no additional FK.
+
+        rows.append(row)
+        index += 1
+
+    logger.debug("Parsed %d coverage rows from form", len(rows))
+    return rows
+
 
 # =========================================================================
 # Software Types (categories)

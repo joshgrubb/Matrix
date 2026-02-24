@@ -70,6 +70,7 @@
                     <th class="text-center">License Model</th>
                     <th>Tier</th>
                     <th class="text-end">Cost</th>
+                    <th>Coverage</th>
                     <th class="text-center">Status</th>
                     <th class="text-end">Actions</th>
                 </tr>
@@ -95,6 +96,13 @@
                         ${{ "%.2f"|format(sw.total_cost) }} total
                         {% else %}
                         —
+                        {% endif %}
+                    </td>
+                    <td class="pm-text-muted">
+                        {% if sw.license_model == 'tenant' %}
+                        {{ coverage_summaries.get(sw.id, '—') }}
+                        {% else %}
+                        <span class="pm-text-muted">—</span>
                         {% endif %}
                     </td>
                     <td class="text-center">
@@ -127,7 +135,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="8">
+                    <td colspan="9">
                         <div class="pm-empty-state">
                             <i class="bi bi-window-stack d-block"></i>
                             <p>No software products found. Click "Add Software" to get started.</p>

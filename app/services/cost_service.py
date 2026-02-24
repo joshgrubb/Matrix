@@ -352,6 +352,12 @@ def _get_covered_headcount(software: Software) -> int:
     Sums ``authorized_count`` across all positions that fall within
     any coverage row's scope, deduplicating positions that appear in
     multiple coverage scopes.
+
+    Supported scope_types:
+        - organization: All active positions in the org.
+        - department:   All active positions under divisions in that department.
+        - division:     All active positions in that division.
+        - position:     A single specific position.
     """
     coverage_rows = SoftwareCoverage.query.filter_by(software_id=software.id).all()
 
@@ -378,10 +384,19 @@ def _get_covered_headcount(software: Software) -> int:
                 covered_position_ids.update(p.id for p in positions)
 
         elif cov.scope_type == "division" and cov.division_id:
+            # All positions in this division.
             positions = Position.query.filter_by(
                 division_id=cov.division_id, is_active=True
             ).all()
             covered_position_ids.update(p.id for p in positions)
+
+        elif cov.scope_type == "position" and cov.position_id:
+            # A single specific position.
+            position = Position.query.filter_by(
+                id=cov.position_id, is_active=True
+            ).first()
+            if position:
+                covered_position_ids.add(position.id)
 
     # Sum authorized_count for all covered positions.
     if not covered_position_ids:

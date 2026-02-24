@@ -27,6 +27,7 @@ from app.models.equipment import (
     SoftwareFamily,
     SoftwareType,
 )
+from app.models.organization import Department, Division, Position
 from app.services import audit_service
 
 logger = logging.getLogger(__name__)
@@ -863,3 +864,190 @@ def _close_software_cost_history(sw: Software) -> None:
     ).first()
     if current:
         current.end_date = datetime.now(timezone.utc)
+
+
+# =========================================================================
+# Software Coverage (tenant scope definitions)
+# =========================================================================
+
+
+def get_software_coverage(software_id: int) -> list[SoftwareCoverage]:
+    """
+    Return all coverage rows for a given software product.
+
+    Args:
+        software_id: Primary key of the software product.
+
+    Returns:
+        List of SoftwareCoverage records ordered by scope_type.
+    """
+    return (
+        SoftwareCoverage.query.filter_by(software_id=software_id)
+        .order_by(SoftwareCoverage.scope_type, SoftwareCoverage.id)
+        .all()
+    )
+
+
+def set_software_coverage(
+    software_id: int,
+    coverage_rows: list[dict],
+    user_id: int | None = None,
+) -> list[SoftwareCoverage]:
+    """
+    Replace all coverage rows for a software product.
+
+    Uses a delete-then-insert pattern (same approach as
+    ``requirement_service.set_position_hardware``).  The audit log
+    captures the full before/after state.
+
+    Args:
+        software_id:   Primary key of the software product.
+        coverage_rows: List of dicts, each containing:
+                       - ``scope_type``: 'organization', 'department',
+                         'division', or 'position'.
+                       - ``department_id``: Required when scope_type
+                         is 'department'.
+                       - ``division_id``: Required when scope_type
+                         is 'division'.
+                       - ``position_id``: Required when scope_type
+                         is 'position'.
+        user_id:       ID of the user making the change.
+
+    Returns:
+        The new list of SoftwareCoverage records.
+
+    Raises:
+        ValueError: If the software product is not found or if a
+                    coverage row has invalid scope data.
+    """
+    sw = get_software_by_id(software_id)
+    if sw is None:
+        raise ValueError(f"Software ID {software_id} not found.")
+
+    # Capture previous state for audit logging.
+    previous_coverage = [
+        {
+            "scope_type": cov.scope_type,
+            "department_id": cov.department_id,
+            "division_id": cov.division_id,
+            "position_id": cov.position_id,
+        }
+        for cov in get_software_coverage(software_id)
+    ]
+
+    # Delete existing coverage rows.
+    SoftwareCoverage.query.filter_by(software_id=software_id).delete(
+        synchronize_session="fetch"
+    )
+    db.session.flush()
+
+    # Validate and insert new coverage rows.
+    new_records = []
+    for row in coverage_rows:
+        scope_type = row.get("scope_type", "").strip().lower()
+        if scope_type not in ("organization", "department", "division", "position"):
+            raise ValueError(
+                f"Invalid scope_type: '{scope_type}'. "
+                "Must be 'organization', 'department', 'division', or 'position'."
+            )
+
+        # Build the new coverage record with appropriate FK.
+        cov = SoftwareCoverage(
+            software_id=software_id,
+            scope_type=scope_type,
+            department_id=(
+                row.get("department_id") if scope_type == "department" else None
+            ),
+            division_id=(row.get("division_id") if scope_type == "division" else None),
+            position_id=(row.get("position_id") if scope_type == "position" else None),
+        )
+
+        # Validate that FK references are provided where required.
+        if scope_type == "department" and not cov.department_id:
+            raise ValueError(
+                "department_id is required when scope_type is 'department'."
+            )
+        if scope_type == "division" and not cov.division_id:
+            raise ValueError("division_id is required when scope_type is 'division'.")
+        if scope_type == "position" and not cov.position_id:
+            raise ValueError("position_id is required when scope_type is 'position'.")
+
+        db.session.add(cov)
+        db.session.flush()
+        new_records.append(cov)
+
+    # Build new state for audit log.
+    new_coverage = [
+        {
+            "scope_type": cov.scope_type,
+            "department_id": cov.department_id,
+            "division_id": cov.division_id,
+            "position_id": cov.position_id,
+        }
+        for cov in new_records
+    ]
+
+    audit_service.log_change(
+        user_id=user_id,
+        action_type="UPDATE",
+        entity_type="equip.software_coverage",
+        entity_id=software_id,
+        previous_value={"coverage": previous_coverage},
+        new_value={"coverage": new_coverage},
+    )
+    db.session.commit()
+
+    logger.info(
+        "Replaced coverage for software ID %d: %d row(s)",
+        software_id,
+        len(new_records),
+    )
+    return new_records
+
+
+def get_coverage_summary(software: Software) -> str:
+    """
+    Build a human-readable summary of a software product's coverage.
+
+    Used by the software_list template to display coverage at a glance.
+
+    Args:
+        software: A Software model instance with eager-loaded coverage.
+
+    Returns:
+        A string such as 'Organization-wide', '2 departments',
+        'Finance Dept, IT Division', or '—' if no coverage is defined.
+    """
+    # Import here to avoid circular dependency at module level.
+    from app.models.organization import (  # pylint: disable=import-outside-toplevel
+        Department,
+        Division,
+        Position,
+    )
+
+    coverage_rows = software.coverage
+    if not coverage_rows:
+        return "—"
+
+    # Check for organization-wide scope first.
+    if any(cov.scope_type == "organization" for cov in coverage_rows):
+        return "Organization-wide"
+
+    # Collect human-readable labels for each scope.
+    labels = []
+    for cov in coverage_rows:
+        if cov.scope_type == "department" and cov.department_id:
+            dept = db.session.get(Department, cov.department_id)
+            labels.append(f"Dept: {dept.department_name}" if dept else "Dept: ?")
+        elif cov.scope_type == "division" and cov.division_id:
+            div = db.session.get(Division, cov.division_id)
+            labels.append(f"Div: {div.division_name}" if div else "Div: ?")
+        elif cov.scope_type == "position" and cov.position_id:
+            pos = db.session.get(Position, cov.position_id)
+            labels.append(f"Pos: {pos.position_title}" if pos else "Pos: ?")
+
+    # If there are many labels, summarize instead of listing all.
+    if len(labels) > 3:
+        return f"{len(labels)} scopes"
+
+    return ", ".join(labels) if labels else "—"
