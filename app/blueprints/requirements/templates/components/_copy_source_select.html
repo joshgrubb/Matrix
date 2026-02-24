@@ -1,0 +1,14 @@
+{# Tier 2 (#8): Partial rendered by htmx_positions_with_requirements().
+Returns <option> elements for positions that have existing equipment.
+    Loaded into the "copy from" dropdown via HTMX. #}
+
+<option value="">— Select a position to copy from —</option>
+{% for pos in positions %}
+<option value="{{ pos.id }}">
+    {{ pos.title }}
+    ({{ pos.hw_count }} equipment, {{ pos.sw_count }} software)
+</option>
+{% endfor %}
+{% if not positions %}
+<option value="" disabled>No configured positions in this division</option>
+{% endif %}

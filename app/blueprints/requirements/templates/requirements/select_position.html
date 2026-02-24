@@ -3,6 +3,10 @@
 {% block title %}Select Position — Position Equipment{% endblock %}
 
 {% block content %}
+{# Tier 2 (#11): Wizard step indicator replaces old breadcrumb. #}
+{% set current_step = 1 %}
+{% include "requirements/_step_indicator.html" %}
+
 <div class="pm-page-header">
     <div>
         {# Tier 1: "Configure Position Requirements" → friendlier wording. #}
@@ -25,11 +29,6 @@
                 <form method="GET" id="position-select-form">
 
                     {# -- Department dropdown -- #}
-                    {# NOTE: No hx-* attributes here. JavaScript below drives the
-                    HTMX requests via htmx.ajax() so the correct ID is always
-                    included in the URL path. This avoids the race condition
-                    where HTMX fired the request with the stale placeholder
-                    URL (department_id=0) before JS could update it. #}
                     <div class="mb-3">
                         <label for="department_id" class="pm-form-label">
                             Department <span class="pm-required">*</span>
@@ -70,6 +69,33 @@
                         <i class="bi bi-arrow-right"></i>
                     </button>
                 </form>
+
+                {# ── Tier 2 (#8): Copy from another position ── #}
+                <hr class="my-4">
+                <div id="copy-from-section">
+                    <h6 class="mb-2">
+                        <i class="bi bi-copy me-1"></i>
+                        Or, copy equipment from an existing position
+                    </h6>
+                    <p class="pm-text-muted" style="font-size: 0.85rem;">
+                        If another position already has the equipment setup you need,
+                        you can copy it and then customize. Select a division above
+                        first to see available positions.
+                    </p>
+                    <div class="mb-3">
+                        <label for="copy_source_id" class="pm-form-label">
+                            Copy from
+                        </label>
+                        <select name="copy_source_id" id="copy_source_id" class="form-select" disabled>
+                            <option value="">— Select a division first —</option>
+                        </select>
+                    </div>
+                    <button type="button" id="btn-copy" class="pm-btn pm-btn-secondary" onclick="copyFromPosition()"
+                        disabled>
+                        <i class="bi bi-copy me-1"></i>
+                        Copy &amp; Customize
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -87,8 +113,13 @@
         document.getElementById('position_id').innerHTML =
             '<option value="">— Select Position —</option>';
 
+        /* Tier 2: Also reset the copy-from dropdown. */
+        var copySelect = document.getElementById('copy_source_id');
+        copySelect.innerHTML = '<option value="">— Select a division first —</option>';
+        copySelect.disabled = true;
+        document.getElementById('btn-copy').disabled = true;
+
         if (deptId) {
-            /* Fetch division options and swap them into the division select. */
             htmx.ajax('GET', '/org/htmx/divisions/' + deptId, {
                 target: '#division_id',
                 swap: 'innerHTML'
@@ -96,7 +127,7 @@
         }
     });
 
-    /* -- Division → Position cascade -- */
+    /* -- Division → Position cascade + copy-from loader -- */
     document.getElementById('division_id').addEventListener('change', function () {
         var divId = this.value;
 
@@ -104,13 +135,35 @@
         document.getElementById('position_id').innerHTML =
             '<option value="">— Select Position —</option>';
 
+        /* Tier 2: Reset and repopulate the copy-from dropdown. */
+        var copySelect = document.getElementById('copy_source_id');
+        copySelect.innerHTML = '<option value="">— Loading... —</option>';
+        copySelect.disabled = true;
+        document.getElementById('btn-copy').disabled = true;
+
         if (divId) {
-            /* Fetch position options and swap them into the position select. */
+            /* Fetch position options for the target dropdown. */
             htmx.ajax('GET', '/org/htmx/positions/' + divId, {
                 target: '#position_id',
                 swap: 'innerHTML'
             });
+
+            /* Tier 2 (#8): Fetch positions with existing requirements
+               for the copy-from dropdown. */
+            htmx.ajax('GET', '/requirements/htmx/positions-with-requirements/' + divId, {
+                target: '#copy_source_id',
+                swap: 'innerHTML'
+            }).then(function () {
+                copySelect.disabled = false;
+            });
+        } else {
+            copySelect.innerHTML = '<option value="">— Select a division first —</option>';
         }
+    });
+
+    /* Tier 2 (#8): Enable copy button when a source is selected. */
+    document.getElementById('copy_source_id').addEventListener('change', function () {
+        document.getElementById('btn-copy').disabled = !this.value;
     });
 
     /**
@@ -123,6 +176,56 @@
             return;
         }
         window.location.href = '{{ url_for("requirements.select_position") }}' + 'position/' + posId + '/hardware';
+    }
+
+    /**
+     * Tier 2 (#8): Copy equipment from a source position to the target,
+     * then redirect to the equipment page for customization.
+     *
+     * Uses a form POST to the copy_requirements route so that CSRF
+     * protection and scope checks are enforced server-side.
+     */
+    function copyFromPosition() {
+        var targetId = document.getElementById('position_id').value;
+        var sourceId = document.getElementById('copy_source_id').value;
+
+        if (!targetId) {
+            alert('Please select a target position first.');
+            return;
+        }
+        if (!sourceId) {
+            alert('Please select a position to copy from.');
+            return;
+        }
+        if (targetId === sourceId) {
+            alert('The target and source positions are the same. Please choose a different position to copy from.');
+            return;
+        }
+
+        /* Confirm before overwriting. */
+        var confirmed = confirm(
+            'This will replace any existing equipment on the target position ' +
+            'with equipment from the selected source.\n\n' +
+            'You can review and adjust everything on the next screen.\n\n' +
+            'Continue?'
+        );
+        if (!confirmed) { return; }
+
+        /* Create and submit a hidden form for the POST. */
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ url_for("requirements.select_position") }}' +
+            'position/' + targetId + '/copy-from/' + sourceId;
+
+        /* Include CSRF token. */
+        var csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrf_token';
+        csrfInput.value = '{{ csrf_token() }}';
+        form.appendChild(csrfInput);
+
+        document.body.appendChild(form);
+        form.submit();
     }
 </script>
 {% endblock %}

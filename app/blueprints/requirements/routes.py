@@ -10,6 +10,16 @@ Tier 1 UX Changes Applied:
       the hardware pattern) and passes software_types + items_by_type
       to the template instead of a flat software_products list.
     - Flash messages updated to use friendlier terminology.
+
+Tier 2 UX Changes Applied:
+    - select_hardware() and select_software() now pass usage_counts
+      (hardware_id/software_id → position count) to display "Used by
+      N positions" popularity indicators.  (#9)
+    - copy_requirements() route: POST endpoint to copy all equipment
+      and software from one position to another.  (#8)
+    - htmx_positions_with_requirements(): Returns position <option>
+      elements for only those positions that already have equipment
+      configured — used by the "copy from" dropdown.  (#8)
 """
 
 import logging
@@ -127,12 +137,16 @@ def select_hardware(position_id):
             items_by_type[type_id] = []
         items_by_type[type_id].append(hw_item)
 
+    # Tier 2 (#9): Fetch popularity counts for "Used by N positions".
+    hw_usage_counts = requirement_service.get_hardware_usage_counts()
+
     return render_template(
         "requirements/select_hardware.html",
         position=position,
         hardware_types=all_hw_types,
         items_by_type=items_by_type,
         selected=selected,
+        usage_counts=hw_usage_counts,
     )
 
 
@@ -210,12 +224,16 @@ def select_software(position_id):
             items_by_type[type_id] = []
         items_by_type[type_id].append(sw)
 
+    # Tier 2 (#9): Fetch popularity counts for "Used by N positions".
+    sw_usage_counts = requirement_service.get_software_usage_counts()
+
     return render_template(
         "requirements/select_software.html",
         position=position,
         software_types=all_sw_types,
         items_by_type=items_by_type,
         selected=selected,
+        usage_counts=sw_usage_counts,
     )
 
 
@@ -250,6 +268,90 @@ def position_summary(position_id):
         "requirements/position_summary.html",
         position=position,
         cost_summary=cost_summary,
+    )
+
+
+# =========================================================================
+# Tier 2: Copy From Another Position (#8)
+# =========================================================================
+
+
+@bp.route(
+    "/position/<int:position_id>/copy-from/<int:source_id>",
+    methods=["POST"],
+)
+@login_required
+@role_required("admin", "it_staff", "manager")
+def copy_requirements(position_id, source_id):
+    """
+    Copy all hardware and software requirements from a source position
+    to the target position, then redirect to the equipment step so the
+    user can review and customize.
+
+    Both positions must be within the user's scope.
+    """
+    # Scope check: user must have access to *both* positions.
+    if not organization_service.user_can_access_position(current_user, position_id):
+        flash("You do not have access to the target position.", "warning")
+        return redirect(url_for("requirements.select_position"))
+
+    if not organization_service.user_can_access_position(current_user, source_id):
+        flash("You do not have access to the source position.", "warning")
+        return redirect(url_for("requirements.select_position"))
+
+    try:
+        requirement_service.copy_position_requirements(
+            source_position_id=source_id,
+            target_position_id=position_id,
+            user_id=current_user.id,
+        )
+        flash("Equipment copied. Review and adjust below.", "success")
+    except ValueError as exc:
+        flash(str(exc), "danger")
+
+    return redirect(url_for("requirements.select_hardware", position_id=position_id))
+
+
+# =========================================================================
+# Tier 2: HTMX Helper — Positions With Requirements (#8)
+# =========================================================================
+
+
+@bp.route("/htmx/positions-with-requirements/<int:division_id>")
+@login_required
+@role_required("admin", "it_staff", "manager")
+def htmx_positions_with_requirements(division_id):
+    """
+    Return <option> elements for positions in a division that already
+    have at least one hardware or software requirement configured.
+
+    Used by the "copy from another position" dropdown on step 1.
+
+    This uses a simple approach: fetch all positions in the division,
+    then check each for existing requirements.  At typical division
+    sizes (5–20 positions) the N+1 is negligible and avoids adding
+    a custom query to the service layer.
+    """
+    positions = organization_service.get_positions_for_division(division_id)
+
+    # Filter to only those with at least one requirement.
+    positions_with_reqs = []
+    for pos in positions:
+        hw_count = len(requirement_service.get_hardware_requirements(pos.id))
+        sw_count = len(requirement_service.get_software_requirements(pos.id))
+        if hw_count > 0 or sw_count > 0:
+            positions_with_reqs.append(
+                {
+                    "id": pos.id,
+                    "title": pos.position_title,
+                    "hw_count": hw_count,
+                    "sw_count": sw_count,
+                }
+            )
+
+    return render_template(
+        "components/_copy_source_select.html",
+        positions=positions_with_reqs,
     )
 
 

@@ -1,0 +1,179 @@
+{#
+Tier 2 (#11): Wizard step indicator — replaces breadcrumb navigation.
+
+Usage:
+{% include "requirements/_step_indicator.html" %}
+
+Expects template variable:
+current_step (int): 1=Position, 2=Equipment, 3=Software, 4=Summary
+position (Position object or None): needed for step links on completed steps
+#}
+
+{% set steps = [
+{"num": 1, "label": "Position", "icon": "bi-building"},
+{"num": 2, "label": "Equipment", "icon": "bi-cpu"},
+{"num": 3, "label": "Software", "icon": "bi-window-stack"},
+{"num": 4, "label": "Summary", "icon": "bi-clipboard-check"},
+] %}
+
+{# Map step numbers to route endpoints for clickable completed steps. #}
+{% set step_urls = {} %}
+{% if position is defined and position %}
+{% set step_urls = {
+1: url_for('requirements.select_position'),
+2: url_for('requirements.select_hardware', position_id=position.id),
+3: url_for('requirements.select_software', position_id=position.id),
+4: url_for('requirements.position_summary', position_id=position.id),
+} %}
+{% else %}
+{% set step_urls = {
+1: url_for('requirements.select_position'),
+} %}
+{% endif %}
+
+<nav class="pm-step-indicator mb-4" aria-label="Progress">
+    <ol class="pm-step-list">
+        {% for step in steps %}
+        {% set is_complete = step.num < current_step %} {% set is_current=step.num==current_step %} {% set
+            is_future=step.num> current_step %}
+
+            <li
+                class="pm-step-item {% if is_complete %}pm-step-complete{% elif is_current %}pm-step-current{% else %}pm-step-future{% endif %}">
+                {# Completed steps are clickable links; current and future are not. #}
+                {% if is_complete and step.num in step_urls %}
+                <a href="{{ step_urls[step.num] }}" class="pm-step-link">
+                    <span class="pm-step-circle">
+                        <i class="bi bi-check-lg"></i>
+                    </span>
+                    <span class="pm-step-label">{{ step.label }}</span>
+                </a>
+                {% else %}
+                <span class="pm-step-link" {% if is_current %}aria-current="step" {% endif %}>
+                    <span class="pm-step-circle">
+                        {% if is_current %}
+                        {{ step.num }}
+                        {% else %}
+                        {{ step.num }}
+                        {% endif %}
+                    </span>
+                    <span class="pm-step-label">{{ step.label }}</span>
+                </span>
+                {% endif %}
+            </li>
+            {% endfor %}
+    </ol>
+</nav>
+
+{# ── Inline styles for the step indicator ──
+Scoped via .pm-step-* class prefix so they don't leak.
+These could be moved to the main stylesheet later. #}
+<style>
+    .pm-step-indicator {
+        padding: 0;
+    }
+
+    .pm-step-list {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        gap: 0;
+    }
+
+    .pm-step-item {
+        display: flex;
+        align-items: center;
+        position: relative;
+    }
+
+    /* Connecting line between steps. */
+    .pm-step-item+.pm-step-item::before {
+        content: "";
+        display: block;
+        width: 3rem;
+        height: 2px;
+        background: var(--pm-border, #dee2e6);
+        margin: 0 0.25rem;
+    }
+
+    .pm-step-item.pm-step-complete+.pm-step-item::before {
+        background: var(--pm-brand-500, #0d6efd);
+    }
+
+    .pm-step-link {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-decoration: none;
+        color: inherit;
+        gap: 0.35rem;
+    }
+
+    a.pm-step-link:hover .pm-step-circle {
+        box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25);
+    }
+
+    .pm-step-circle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.25rem;
+        height: 2.25rem;
+        border-radius: 50%;
+        font-weight: 600;
+        font-size: 0.85rem;
+        transition: box-shadow 0.15s ease;
+    }
+
+    /* Complete: filled brand circle with checkmark. */
+    .pm-step-complete .pm-step-circle {
+        background: var(--pm-brand-500, #0d6efd);
+        color: #fff;
+    }
+
+    /* Current: outlined brand circle. */
+    .pm-step-current .pm-step-circle {
+        background: #fff;
+        color: var(--pm-brand-600, #0a58ca);
+        border: 2px solid var(--pm-brand-500, #0d6efd);
+    }
+
+    /* Future: gray circle. */
+    .pm-step-future .pm-step-circle {
+        background: var(--pm-bg-subtle, #f8f9fa);
+        color: var(--pm-text-muted, #6c757d);
+        border: 2px solid var(--pm-border, #dee2e6);
+    }
+
+    .pm-step-label {
+        font-size: 0.75rem;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+
+    .pm-step-complete .pm-step-label {
+        color: var(--pm-brand-600, #0a58ca);
+    }
+
+    .pm-step-current .pm-step-label {
+        color: var(--pm-brand-600, #0a58ca);
+        font-weight: 700;
+    }
+
+    .pm-step-future .pm-step-label {
+        color: var(--pm-text-muted, #6c757d);
+    }
+
+    /* Responsive: hide labels on very small screens. */
+    @media (max-width: 480px) {
+        .pm-step-label {
+            display: none;
+        }
+
+        .pm-step-item+.pm-step-item::before {
+            width: 1.5rem;
+        }
+    }
+</style>

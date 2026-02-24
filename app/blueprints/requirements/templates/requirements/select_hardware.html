@@ -3,19 +3,9 @@
 {% block title %}Select Equipment — {{ position.position_title }}{% endblock %}
 
 {% block content %}
-{# ── Step breadcrumb ── #}
-<div class="pm-breadcrumb">
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item">
-                <a href="{{ url_for('requirements.select_position') }}">Select Position</a>
-            </li>
-            <li class="breadcrumb-item active" aria-current="page">Equipment</li>
-            <li class="breadcrumb-item"><span class="pm-text-muted">Software</span></li>
-            <li class="breadcrumb-item"><span class="pm-text-muted">Summary</span></li>
-        </ol>
-    </nav>
-</div>
+{# Tier 2 (#11): Wizard step indicator replaces old breadcrumb. #}
+{% set current_step = 2 %}
+{% include "requirements/_step_indicator.html" %}
 
 <div class="pm-page-header">
     <div>
@@ -49,6 +39,16 @@
 
                     {% set has_items = items_by_type | length > 0 %}
                     {% if has_items %}
+
+                    {# ── Tier 2 (#10): Search / filter input ── #}
+                    <div class="mb-3">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text" class="form-control" id="item-filter"
+                                placeholder="Search equipment by name..." autocomplete="off">
+                        </div>
+                    </div>
+
                     {# ── Tier 1: Bootstrap accordion grouped by hardware type ── #}
                     <div class="accordion" id="hardware-accordion">
                         {% for hw_type in hardware_types %}
@@ -89,10 +89,24 @@
                                                 <tr>
                                                     <th style="width: 50px;">Select</th>
                                                     <th>Item</th>
-                                                    {# Tier 1: "Est. Cost" → "Cost Each" #}
-                                                    <th class="text-end">Cost Each</th>
-                                                    {# Tier 1: "Qty / Person" → "Per Person" #}
-                                                    <th style="width: 100px;">Per Person</th>
+                                                    {# Tier 1: "Est. Cost" → "Cost Each"
+                                                    Tier 2 (#14): tooltip explaining this column. #}
+                                                    <th class="text-end">
+                                                        Cost Each
+                                                        <i class="bi bi-question-circle ms-1" data-bs-toggle="tooltip"
+                                                            data-bs-placement="top"
+                                                            title="Annual budgetary cost per unit. This is an estimate — actual costs may vary."
+                                                            style="font-size: 0.75rem; cursor: help;"></i>
+                                                    </th>
+                                                    {# Tier 1: "Qty / Person" → "Per Person"
+                                                    Tier 2 (#14): tooltip explaining quantity. #}
+                                                    <th style="width: 100px;">
+                                                        Per Person
+                                                        <i class="bi bi-question-circle ms-1" data-bs-toggle="tooltip"
+                                                            data-bs-placement="top"
+                                                            title="How many of this item does each person in the position need? Most items are 1; monitors are often 2."
+                                                            style="font-size: 0.75rem; cursor: help;"></i>
+                                                    </th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -101,7 +115,7 @@
                                                 {# Tier 1: data-unit-cost for JS cost panel. #}
                                                 <tr data-unit-cost="{{ hw.estimated_cost }}">
                                                     <td class="text-center">
-                                                        <input type="checkbox" class="form-check-input"
+                                                        <input type="checkbox" class="form-check-input item-checkbox"
                                                             name="hw_{{ hw.id }}_selected" value="on" {% if is_selected
                                                             %}checked{% endif %} id="hw_{{ hw.id }}_selected"
                                                             style="width: 1.2em; height: 1.2em;">
@@ -114,15 +128,26 @@
                                                         {% if hw.description %}
                                                         <br><small class="pm-text-muted">{{ hw.description }}</small>
                                                         {% endif %}
+                                                        {# Tier 2 (#9): "Used by N positions" indicator. #}
+                                                        {% if usage_counts.get(hw.id, 0) > 0 %}
+                                                        <br><small class="pm-text-muted">
+                                                            <i class="bi bi-people me-1"></i>Used by {{
+                                                            usage_counts[hw.id] }} position{{ 's' if usage_counts[hw.id]
+                                                            != 1 }}
+                                                        </small>
+                                                        {% endif %}
                                                     </td>
                                                     <td class="text-end pm-cost">
                                                         ${{ "%.2f"|format(hw.estimated_cost) }}
                                                     </td>
                                                     <td>
-                                                        <input type="number" class="form-control form-control-sm"
+                                                        {# Tier 2 (#13): Quantity disabled when unchecked. #}
+                                                        <input type="number"
+                                                            class="form-control form-control-sm item-quantity"
                                                             name="hw_{{ hw.id }}_quantity"
                                                             value="{{ selected[hw.id].quantity if is_selected else 1 }}"
-                                                            min="1" max="99">
+                                                            min="1" max="99" {% if not is_selected %}disabled{% endif
+                                                            %}>
                                                     </td>
                                                 </tr>
                                                 {% endfor %}

@@ -3,21 +3,9 @@
 {% block title %}Select Software — {{ position.position_title }}{% endblock %}
 
 {% block content %}
-{# ── Step breadcrumb ── #}
-<div class="pm-breadcrumb">
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item">
-                <a href="{{ url_for('requirements.select_position') }}">Select Position</a>
-            </li>
-            <li class="breadcrumb-item">
-                <a href="{{ url_for('requirements.select_hardware', position_id=position.id) }}">Equipment</a>
-            </li>
-            <li class="breadcrumb-item active" aria-current="page">Software</li>
-            <li class="breadcrumb-item"><span class="pm-text-muted">Summary</span></li>
-        </ol>
-    </nav>
-</div>
+{# Tier 2 (#11): Wizard step indicator replaces old breadcrumb. #}
+{% set current_step = 3 %}
+{% include "requirements/_step_indicator.html" %}
 
 <div class="pm-page-header">
     <div>
@@ -52,6 +40,16 @@
                     {# Tier 1: Software is now grouped by software_type in an accordion. #}
                     {% set has_items = items_by_type | length > 0 %}
                     {% if has_items %}
+
+                    {# ── Tier 2 (#10): Search / filter input ── #}
+                    <div class="mb-3">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text" class="form-control" id="item-filter"
+                                placeholder="Search software by name..." autocomplete="off">
+                        </div>
+                    </div>
+
                     <div class="accordion" id="software-accordion">
                         {% for sw_type in software_types %}
                         {% set type_items = items_by_type.get(sw_type.id, []) %}
@@ -91,10 +89,24 @@
                                                 <tr>
                                                     <th style="width: 50px;">Select</th>
                                                     <th>Software</th>
-                                                    <th>License Type</th>
+                                                    <th>
+                                                        License Type
+                                                        {# Tier 2 (#14): Tooltip on column header. #}
+                                                        <i class="bi bi-question-circle ms-1" data-bs-toggle="tooltip"
+                                                            data-bs-placement="top"
+                                                            title="Individual licenses are billed per person. Shared licenses are paid once for a group and the cost is split across all positions that use them."
+                                                            style="font-size: 0.75rem; cursor: help;"></i>
+                                                    </th>
                                                     <th>Cost</th>
-                                                    {# Tier 1: "Qty" → "Per Person" #}
-                                                    <th style="width: 90px;">Per Person</th>
+                                                    {# Tier 1: "Qty" → "Per Person"
+                                                    Tier 2 (#14): tooltip explaining quantity. #}
+                                                    <th style="width: 90px;">
+                                                        Per Person
+                                                        <i class="bi bi-question-circle ms-1" data-bs-toggle="tooltip"
+                                                            data-bs-placement="top"
+                                                            title="Number of licenses each person in this position needs. Usually 1."
+                                                            style="font-size: 0.75rem; cursor: help;"></i>
+                                                    </th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -107,7 +119,7 @@
                                                 <tr
                                                     data-unit-cost="{{ sw.cost_per_license if sw.license_model == 'per_user' else 0 }}">
                                                     <td class="text-center">
-                                                        <input type="checkbox" class="form-check-input"
+                                                        <input type="checkbox" class="form-check-input item-checkbox"
                                                             name="sw_{{ sw.id }}_selected" value="on" {% if is_selected
                                                             %}checked{% endif %} id="sw_{{ sw.id }}_selected"
                                                             style="width: 1.2em; height: 1.2em;">
@@ -124,16 +136,29 @@
                                                         {% if sw.description %}
                                                         <br><small class="pm-text-muted">{{ sw.description }}</small>
                                                         {% endif %}
+                                                        {# Tier 2 (#9): "Used by N positions" indicator. #}
+                                                        {% if usage_counts.get(sw.id, 0) > 0 %}
+                                                        <br><small class="pm-text-muted">
+                                                            <i class="bi bi-people me-1"></i>Used by {{
+                                                            usage_counts[sw.id] }} position{{ 's' if usage_counts[sw.id]
+                                                            != 1 }}
+                                                        </small>
+                                                        {% endif %}
                                                     </td>
                                                     <td>
                                                         {# Tier 1: "Per User" → "Individual License",
-                                                        "Tenant" → "Shared License" #}
+                                                        "Tenant" → "Shared License"
+                                                        Tier 2 (#14): Richer tooltip on Shared License badge. #}
                                                         {% if sw.license_model == 'per_user' %}
-                                                        <span class="pm-badge pm-badge-info">Individual License</span>
+                                                        <span class="pm-badge pm-badge-info" data-bs-toggle="tooltip"
+                                                            data-bs-placement="top"
+                                                            title="This license is purchased for each person individually. The cost shown is per person per year.">
+                                                            Individual License
+                                                        </span>
                                                         {% else %}
                                                         <span class="pm-badge pm-badge-warning" data-bs-toggle="tooltip"
                                                             data-bs-placement="top"
-                                                            title="This license is paid once for a group of positions. The cost shown on the summary is your position's share.">
+                                                            title="This license is paid once for a group of positions. Your position's share of the cost is calculated on the summary page based on how many positions use it.">
                                                             Shared License
                                                         </span>
                                                         {% endif %}
@@ -148,10 +173,13 @@
                                                         {% endif %}
                                                     </td>
                                                     <td>
-                                                        <input type="number" class="form-control form-control-sm"
+                                                        {# Tier 2 (#13): Quantity disabled when unchecked. #}
+                                                        <input type="number"
+                                                            class="form-control form-control-sm item-quantity"
                                                             name="sw_{{ sw.id }}_quantity"
                                                             value="{{ selected[sw.id].quantity if is_selected else 1 }}"
-                                                            min="1" max="99">
+                                                            min="1" max="99" {% if not is_selected %}disabled{% endif
+                                                            %}>
                                                     </td>
                                                 </tr>
                                                 {% endfor %}

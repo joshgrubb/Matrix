@@ -3,8 +3,9 @@
  *
  * Handles sidebar toggle for mobile, flash message auto-dismiss,
  * confirm dialogs for destructive actions, the client-side running
- * cost panel on equipment selection pages, and the empty submission
- * guard for the hardware/software forms.
+ * cost panel on equipment selection pages, the empty submission
+ * guard for the hardware/software forms, client-side search/filter
+ * for accordion item lists, and quantity field enable/disable sync.
  *
  * HTMX is loaded via CDN in base.html and handles most dynamic
  * server-rendered interactions. This file supplements HTMX with
@@ -17,6 +18,13 @@
  *     an empty selection (which would clear all equipment).
  *   - Running cost panel: client-side arithmetic reads data-cost
  *     attributes from table rows and updates a sticky summary.
+ *
+ * Tier 2 UX Changes:
+ *   - Search/filter (#10): Text input filters accordion items by
+ *     name and auto-expands matching groups.
+ *   - Disable quantity for unchecked items (#13): Quantity inputs
+ *     are disabled (grayed out) when the corresponding checkbox is
+ *     unchecked, eliminating visual noise.
  */
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -105,11 +113,14 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
 
+    // ── Reference to the equipment form (used by multiple features) ─
+    var equipmentForm = document.getElementById('equipment-selection-form');
+
+
     // ── Empty submission guard (Tier 1, #4) ─────────────────────────
     // On the hardware and software selection forms, if the user tries
     // to submit with zero items checked, show a confirmation dialog
     // warning that this will clear all equipment from the position.
-    var equipmentForm = document.getElementById('equipment-selection-form');
     if (equipmentForm) {
         equipmentForm.addEventListener('submit', function (e) {
             var checkedBoxes = equipmentForm.querySelectorAll(
@@ -126,6 +137,62 @@ document.addEventListener('DOMContentLoaded', function () {
                     e.preventDefault();
                 }
             }
+        });
+    }
+
+
+    // ── Tier 2 (#13): Disable quantity for unchecked items ──────────
+    // When a checkbox is unchecked, its row's quantity input is
+    // disabled and visually grayed out.  When checked, the input
+    // is re-enabled.  Disabled inputs are NOT submitted with the
+    // form, but since we only parse *_selected keys in the route,
+    // this is safe — unchecked items are ignored regardless.
+    //
+    // NOTE: We must temporarily re-enable all quantity inputs on
+    // form submit so that checked items with quantities > 1 are
+    // actually included in the POST data.
+    if (equipmentForm) {
+        /**
+         * Sync a single quantity input's disabled state with its
+         * row's checkbox.
+         *
+         * @param {HTMLInputElement} checkbox - The item checkbox.
+         */
+        function syncQuantityDisabled(checkbox) {
+            var row = checkbox.closest('tr');
+            if (!row) { return; }
+            var qtyInput = row.querySelector('.item-quantity');
+            if (!qtyInput) { return; }
+
+            if (checkbox.checked) {
+                // Enable the quantity input and remove dim styling.
+                qtyInput.disabled = false;
+                qtyInput.style.opacity = '';
+            } else {
+                // Disable the quantity input and dim it.
+                qtyInput.disabled = true;
+                qtyInput.style.opacity = '0.4';
+            }
+        }
+
+        // Set initial state on page load for all checkboxes.
+        equipmentForm.querySelectorAll('.item-checkbox').forEach(function (cb) {
+            syncQuantityDisabled(cb);
+        });
+
+        // Listen for checkbox changes to toggle quantity inputs.
+        equipmentForm.addEventListener('change', function (e) {
+            if (e.target.classList.contains('item-checkbox')) {
+                syncQuantityDisabled(e.target);
+            }
+        });
+
+        // Before form submission, re-enable all quantity inputs so
+        // their values are included in the POST data.
+        equipmentForm.addEventListener('submit', function () {
+            equipmentForm.querySelectorAll('.item-quantity').forEach(function (input) {
+                input.disabled = false;
+            });
         });
     }
 
@@ -155,7 +222,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Find all checked equipment checkboxes in the form.
             var checkboxes = equipmentForm
-                ? equipmentForm.querySelectorAll('input[type="checkbox"]')
+                ? equipmentForm.querySelectorAll('.item-checkbox')
                 : [];
 
             checkboxes.forEach(function (cb) {
@@ -169,7 +236,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     row.getAttribute('data-unit-cost') || '0'
                 );
                 // Find the quantity input in the same row.
-                var qtyInput = row.querySelector('input[type="number"]');
+                var qtyInput = row.querySelector('.item-quantity');
                 var qty = qtyInput ? parseInt(qtyInput.value, 10) || 1 : 1;
 
                 total += unitCost * qty;
@@ -193,12 +260,13 @@ document.addEventListener('DOMContentLoaded', function () {
         // Attach listeners to all checkboxes and quantity inputs.
         if (equipmentForm) {
             equipmentForm.addEventListener('change', function (e) {
-                if (e.target.type === 'checkbox' || e.target.type === 'number') {
+                if (e.target.classList.contains('item-checkbox') ||
+                    e.target.classList.contains('item-quantity')) {
                     recalculateCost();
                 }
             });
             equipmentForm.addEventListener('input', function (e) {
-                if (e.target.type === 'number') {
+                if (e.target.classList.contains('item-quantity')) {
                     recalculateCost();
                 }
             });
@@ -209,8 +277,64 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
 
+    // ── Tier 2 (#10): Search / filter for accordion items ───────────
+    // A text input at the top of the equipment and software pages
+    // filters table rows by item name.  Groups with zero visible
+    // rows are hidden entirely.  Groups with matches are auto-
+    // expanded so the user sees results immediately.
+    var filterInput = document.getElementById('item-filter');
+    if (filterInput) {
+        filterInput.addEventListener('input', function () {
+            var query = this.value.toLowerCase().trim();
+
+            // Iterate over each accordion group.
+            document.querySelectorAll('.accordion-item').forEach(function (group) {
+                var rows = group.querySelectorAll('tbody tr');
+                var visibleCount = 0;
+
+                // Show or hide each row based on whether the item
+                // name matches the search query.
+                rows.forEach(function (row) {
+                    var label = row.querySelector('label');
+                    if (!label) { return; }
+                    var name = label.textContent.toLowerCase();
+                    var match = !query || name.includes(query);
+                    row.style.display = match ? '' : 'none';
+                    if (match) { visibleCount++; }
+                });
+
+                // Hide the entire group if it has no matching rows.
+                group.style.display = (visibleCount > 0 || !query) ? '' : 'none';
+
+                // Auto-expand groups that have matches when filtering.
+                if (query && visibleCount > 0) {
+                    var collapse = group.querySelector('.accordion-collapse');
+                    if (collapse && !collapse.classList.contains('show')) {
+                        new bootstrap.Collapse(collapse, { toggle: true });
+                    }
+                }
+
+                // When the filter is cleared, collapse groups back to
+                // their default state (only groups with selections open).
+                if (!query) {
+                    var collapse = group.querySelector('.accordion-collapse');
+                    if (collapse) {
+                        var hasChecked = group.querySelectorAll(
+                            '.item-checkbox:checked'
+                        ).length > 0;
+                        if (!hasChecked && collapse.classList.contains('show')) {
+                            new bootstrap.Collapse(collapse, { toggle: true });
+                        }
+                    }
+                }
+            });
+        });
+    }
+
+
     // ── Initialize Bootstrap tooltips ───────────────────────────────
-    // Used for inline help on license types and other labels.
+    // Used for inline help on license types, column headers, and
+    // other labels (Tier 1 + Tier 2 #14 enhancements).
     var tooltipTriggers = document.querySelectorAll('[data-bs-toggle="tooltip"]');
     tooltipTriggers.forEach(function (el) {
         new bootstrap.Tooltip(el);
