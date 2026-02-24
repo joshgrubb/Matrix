@@ -111,13 +111,13 @@
 
         {# -- Requirements — admin, IT staff, and managers only -- #}
         {% if current_user.role.role_name in ('admin', 'it_staff', 'manager') %}
-        <div class="pm-sidebar-section">Configuration</div>
+        <div class="pm-sidebar-section">Position Equipment</div>
         <ul class="pm-sidebar-nav">
             <li>
                 <a class="pm-sidebar-link {% if request.endpoint and request.endpoint.startswith('requirements.') %}active{% endif %}"
                     href="{{ url_for('requirements.select_position') }}">
                     <i class="bi bi-list-check"></i>
-                    Requirements
+                    Position Equipment
                 </a>
             </li>
         </ul>

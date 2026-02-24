@@ -30,7 +30,8 @@
         </div>
     </div>
 
-    {# -- Requirements card — admin, IT staff, and managers only -- #}
+    {# -- Position Equipment card — admin, IT staff, and managers only -- #}
+    {# Tier 1: "Requirements" → "Position Equipment", updated description. #}
     {% if current_user.has_role('admin', 'it_staff', 'manager') %}
     <div class="col-md-6 col-lg-4">
         <div class="pm-card pm-card-hover h-100">
@@ -38,11 +39,11 @@
                 <div class="pm-feature-icon" style="background: var(--pm-success-bg); color: var(--pm-success);">
                     <i class="bi bi-list-check"></i>
                 </div>
-                <h3>Requirements</h3>
-                <p>Configure hardware and software requirements for positions.</p>
+                <h3>Position Equipment</h3>
+                <p>Set up what equipment and software each position needs.</p>
                 <a href="{{ url_for('requirements.select_position') }}" class="pm-btn pm-btn-primary pm-btn-sm mt-auto">
                     <i class="bi bi-arrow-right"></i>
-                    Manage Requirements
+                    Set Up Equipment
                 </a>
             </div>
         </div>

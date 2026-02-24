@@ -1,9 +1,15 @@
 """
-Routes for the requirements blueprint — guided position requirement flow.
+Routes for the requirements blueprint — guided position equipment flow.
 
 Flow: Select Position → Select Hardware → Select Software → Summary.
 
 Restricted to admin, IT staff, and scoped managers.
+
+Tier 1 UX Changes Applied:
+    - select_software() now groups software by software_type (mirrors
+      the hardware pattern) and passes software_types + items_by_type
+      to the template instead of a flat software_products list.
+    - Flash messages updated to use friendlier terminology.
 """
 
 import logging
@@ -33,7 +39,7 @@ logger = logging.getLogger(__name__)
 @role_required("admin", "it_staff", "manager")
 def select_position():
     """
-    Step 1: Choose a position to configure requirements for.
+    Step 1: Choose a position to configure equipment for.
 
     Displays department → division → position cascading dropdowns
     powered by HTMX.
@@ -58,7 +64,7 @@ def select_hardware(position_id):
     Step 2: Select hardware items for the position.
 
     GET:  Display current hardware requirements and available items
-          grouped by hardware type.
+          grouped by hardware type inside a Bootstrap accordion.
     POST: Save hardware selections and advance to software step.
     """
     # Scope check.
@@ -83,7 +89,7 @@ def select_hardware(position_id):
                 items=items,
                 user_id=current_user.id,
             )
-            flash("Hardware requirements saved.", "success")
+            flash("Hardware selections saved.", "success")
             return redirect(
                 url_for(
                     "requirements.select_software",
@@ -92,11 +98,11 @@ def select_hardware(position_id):
             )
         except Exception:
             logger.exception(
-                "Error saving hardware requirements for position %d",
+                "Error saving hardware selections for position %d",
                 position_id,
             )
             flash(
-                "An error occurred while saving hardware requirements. "
+                "An error occurred while saving hardware selections. "
                 "Please try again.",
                 "danger",
             )
@@ -142,8 +148,12 @@ def select_software(position_id):
     """
     Step 3: Select software products for the position.
 
-    GET:  Display current software requirements and available products.
+    GET:  Display current software requirements and available products
+          grouped by software type inside a Bootstrap accordion.
     POST: Save software selections and advance to summary.
+
+    Tier 1 Change: Software products are now grouped by software_type,
+    mirroring the pattern already used on the hardware page.
     """
     if not organization_service.user_can_access_position(current_user, position_id):
         flash("You do not have access to this position.", "warning")
@@ -163,7 +173,7 @@ def select_software(position_id):
                 items=items,
                 user_id=current_user.id,
             )
-            flash("Software requirements saved.", "success")
+            flash("Software selections saved.", "success")
             return redirect(
                 url_for(
                     "requirements.position_summary",
@@ -172,11 +182,11 @@ def select_software(position_id):
             )
         except Exception:
             logger.exception(
-                "Error saving software requirements for position %d",
+                "Error saving software selections for position %d",
                 position_id,
             )
             flash(
-                "An error occurred while saving software requirements. "
+                "An error occurred while saving software selections. "
                 "Please try again.",
                 "danger",
             )
@@ -184,16 +194,27 @@ def select_software(position_id):
     # GET (or POST that failed): Load current requirements and products.
     current_sw = requirement_service.get_software_requirements(position_id)
     all_software = equipment_service.get_software_products()
+    # Tier 1: Fetch software types for grouped accordion display.
+    all_sw_types = equipment_service.get_software_types()
 
     selected = {
         req.software_id: {"quantity": req.quantity, "notes": req.notes}
         for req in current_sw
     }
 
+    # Tier 1: Group software by type for display (mirrors hardware pattern).
+    items_by_type = {}
+    for sw in all_software:
+        type_id = sw.software_type_id
+        if type_id not in items_by_type:
+            items_by_type[type_id] = []
+        items_by_type[type_id].append(sw)
+
     return render_template(
         "requirements/select_software.html",
         position=position,
-        software_products=all_software,
+        software_types=all_sw_types,
+        items_by_type=items_by_type,
         selected=selected,
     )
 
@@ -208,10 +229,10 @@ def select_software(position_id):
 @role_required("admin", "it_staff", "manager")
 def position_summary(position_id):
     """
-    Step 4: Display a summary of all requirements and costs.
+    Step 4: Display a summary of all equipment selections and costs.
 
     Shows the position's hardware and software requirements with
-    calculated costs.
+    calculated costs, IT review reassurance, and next-step actions.
     """
     if not organization_service.user_can_access_position(current_user, position_id):
         flash("You do not have access to this position.", "warning")
@@ -247,7 +268,7 @@ def remove_hardware(req_id):
             requirement_id=req_id,
             user_id=current_user.id,
         )
-        flash("Hardware requirement removed.", "info")
+        flash("Hardware item removed.", "info")
     except ValueError as exc:
         flash(str(exc), "danger")
     # Return to the referring page.
@@ -264,7 +285,7 @@ def remove_software(req_id):
             requirement_id=req_id,
             user_id=current_user.id,
         )
-        flash("Software requirement removed.", "info")
+        flash("Software item removed.", "info")
     except ValueError as exc:
         flash(str(exc), "danger")
     return redirect(request.referrer or url_for("requirements.select_position"))

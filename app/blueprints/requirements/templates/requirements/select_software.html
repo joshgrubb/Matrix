@@ -11,7 +11,7 @@
                 <a href="{{ url_for('requirements.select_position') }}">Select Position</a>
             </li>
             <li class="breadcrumb-item">
-                <a href="{{ url_for('requirements.select_hardware', position_id=position.id) }}">Hardware</a>
+                <a href="{{ url_for('requirements.select_hardware', position_id=position.id) }}">Equipment</a>
             </li>
             <li class="breadcrumb-item active" aria-current="page">Software</li>
             <li class="breadcrumb-item"><span class="pm-text-muted">Summary</span></li>
@@ -22,100 +22,202 @@
 <div class="pm-page-header">
     <div>
         <h1>Select Software</h1>
+        {# Tier 1: Hide position code; show title + budgeted positions. #}
         <p>
-            {{ position.position_code }} — {{ position.position_title }}
-            ({{ position.authorized_count }} authorized)
+            {{ position.position_title }}
+            — {{ position.authorized_count }} budgeted position{{ 's' if position.authorized_count != 1 }}
         </p>
     </div>
 </div>
 
-<form method="POST">
+<form method="POST" id="equipment-selection-form" data-step="software">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-    <div class="pm-card mb-4">
-        <div class="card-header">
-            <i class="bi bi-3-circle me-2"></i>Step 3: Select Software Products
-        </div>
-        <div class="card-body">
-            <p class="pm-text-muted mb-3">
-                Check each software product this position requires, set the quantity, and add optional notes.
-            </p>
-            {% if software_products %}
-            <div class="table-responsive">
-                <table class="table pm-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 50px;">Select</th>
-                            <th>Software Product</th>
-                            <th>License</th>
-                            <th>Cost</th>
-                            <th style="width: 90px;">Qty</th>
-                            <th style="width: 180px;">Notes</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for sw in software_products %}
-                        {% set is_selected = sw.id in selected %}
-                        <tr>
-                            <td class="text-center">
-                                {# FIX: Changed name from "sw_<id>" to "sw_<id>_selected"
-                                        to match the pattern expected by _parse_software_form()
-                                        in routes.py. The parser looks for keys ending in
-                                        "_selected" to identify checked software products. #}
-                                        <input type="checkbox" class="form-check-input" name="sw_{{ sw.id }}_selected"
-                                            value="on" {% if is_selected %}checked{% endif %}
-                                            id="sw_{{ sw.id }}_selected" style="width: 1.2em; height: 1.2em;">
-                            </td>
-                            <td>
-                                <label for="sw_{{ sw.id }}_selected" style="cursor: pointer; font-weight: 500;">
-                                    {{ sw.name }}
-                                </label>
-                                {% if sw.tier %}
-                                <span class="pm-badge pm-badge-neutral ms-1">{{ sw.tier }}</span>
-                                {% endif %}
-                                {% if sw.description %}
-                                <br><small class="pm-text-muted">{{ sw.description }}</small>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if sw.license_model == 'per_user' %}
-                                <span class="pm-badge pm-badge-info">Per User</span>
-                                {% else %}
-                                <span class="pm-badge pm-badge-warning">Tenant</span>
-                                {% endif %}
-                            </td>
-                            <td class="pm-cost">
-                                {% if sw.license_model == 'per_user' %}
-                                ${{ "%.2f"|format(sw.cost_per_license) }}/lic
-                                {% else %}
-                                ${{ "%.2f"|format(sw.total_cost) }} total
-                                {% endif %}
-                            </td>
-                            <td>
-                                <input type="number" class="form-control form-control-sm" name="sw_{{ sw.id }}_quantity"
-                                    value="{{ selected[sw.id].quantity if is_selected else 1 }}" min="1" max="99">
-                            </td>
-                            <td>
-                                <input type="text" class="form-control form-control-sm" name="sw_{{ sw.id }}_notes"
-                                    value="{{ selected[sw.id].notes or '' if is_selected else '' }}"
-                                    placeholder="Optional note">
-                            </td>
-                        </tr>
+    <div class="row">
+        {# ── Main content column ── #}
+        <div class="col-lg-8">
+            <div class="pm-card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-3-circle me-2"></i>Step 3: Select Software &amp; Licenses
+                </div>
+                <div class="card-body">
+                    {# Tier 1: Updated instruction text with reassurance. #}
+                    <p class="pm-text-muted mb-3">
+                        Check each software product this position needs and set the quantity per person.
+                        <br>
+                        <small><i class="bi bi-info-circle me-1"></i>Don't worry about getting it
+                            perfect — IT will review your selections and can help adjust.</small>
+                    </p>
+
+                    {# Tier 1: Software is now grouped by software_type in an accordion. #}
+                    {% set has_items = items_by_type | length > 0 %}
+                    {% if has_items %}
+                    <div class="accordion" id="software-accordion">
+                        {% for sw_type in software_types %}
+                        {% set type_items = items_by_type.get(sw_type.id, []) %}
+                        {% if type_items %}
+                        {# Check if any item in this group is already selected. #}
+                        {% set ns = namespace(has_selection=false, selected_count=0) %}
+                        {% for sw in type_items %}
+                        {% if sw.id in selected %}
+                        {% set ns.has_selection = true %}
+                        {% set ns.selected_count = ns.selected_count + 1 %}
+                        {% endif %}
                         {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="pm-empty-state">
-                <i class="bi bi-window-stack d-block"></i>
-                <p>
-                    No software products have been configured yet.
-                    {% if current_user.has_role('admin', 'it_staff') %}
-                    <a href="{{ url_for('equipment.software_create') }}">Add software products</a> first.
+
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button {% if not ns.has_selection %}collapsed{% endif %}"
+                                    type="button" data-bs-toggle="collapse" data-bs-target="#sw-group-{{ sw_type.id }}"
+                                    aria-expanded="{{ 'true' if ns.has_selection else 'false' }}">
+                                    <i class="bi bi-tag me-2"></i>
+                                    {{ sw_type.type_name }}
+                                    <span class="badge bg-secondary ms-2">{{ type_items | length }} item{{ 's' if
+                                        type_items | length != 1 }}</span>
+                                    {% if ns.has_selection %}
+                                    <span class="badge bg-primary ms-1">
+                                        {{ ns.selected_count }} selected
+                                    </span>
+                                    {% endif %}
+                                </button>
+                            </h2>
+                            <div id="sw-group-{{ sw_type.id }}"
+                                class="accordion-collapse collapse {% if ns.has_selection %}show{% endif %}"
+                                data-bs-parent="#software-accordion">
+                                <div class="accordion-body p-0">
+                                    <div class="table-responsive">
+                                        <table class="table pm-table mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width: 50px;">Select</th>
+                                                    <th>Software</th>
+                                                    <th>License Type</th>
+                                                    <th>Cost</th>
+                                                    {# Tier 1: "Qty" → "Per Person" #}
+                                                    <th style="width: 90px;">Per Person</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for sw in type_items %}
+                                                {% set is_selected = sw.id in selected %}
+                                                {# Tier 1: data-unit-cost for JS cost panel.
+                                                For per_user: use cost_per_license.
+                                                For tenant: use 0 (tenant cost is org-wide,
+                                                not meaningful at the selection level). #}
+                                                <tr
+                                                    data-unit-cost="{{ sw.cost_per_license if sw.license_model == 'per_user' else 0 }}">
+                                                    <td class="text-center">
+                                                        <input type="checkbox" class="form-check-input"
+                                                            name="sw_{{ sw.id }}_selected" value="on" {% if is_selected
+                                                            %}checked{% endif %} id="sw_{{ sw.id }}_selected"
+                                                            style="width: 1.2em; height: 1.2em;">
+                                                    </td>
+                                                    <td>
+                                                        <label for="sw_{{ sw.id }}_selected"
+                                                            style="cursor: pointer; font-weight: 500;">
+                                                            {{ sw.name }}
+                                                        </label>
+                                                        {% if sw.license_tier %}
+                                                        <span class="pm-badge pm-badge-neutral ms-1">{{ sw.license_tier
+                                                            }}</span>
+                                                        {% endif %}
+                                                        {% if sw.description %}
+                                                        <br><small class="pm-text-muted">{{ sw.description }}</small>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {# Tier 1: "Per User" → "Individual License",
+                                                        "Tenant" → "Shared License" #}
+                                                        {% if sw.license_model == 'per_user' %}
+                                                        <span class="pm-badge pm-badge-info">Individual License</span>
+                                                        {% else %}
+                                                        <span class="pm-badge pm-badge-warning" data-bs-toggle="tooltip"
+                                                            data-bs-placement="top"
+                                                            title="This license is paid once for a group of positions. The cost shown on the summary is your position's share.">
+                                                            Shared License
+                                                        </span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="pm-cost">
+                                                        {# Tier 1: Friendlier cost labels. #}
+                                                        {% if sw.license_model == 'per_user' %}
+                                                        ${{ "%.2f"|format(sw.cost_per_license) }}/person/yr
+                                                        {% else %}
+                                                        ${{ "{:,.0f}".format(sw.total_cost) }}/yr
+                                                        <small class="pm-text-muted">(shared)</small>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        <input type="number" class="form-control form-control-sm"
+                                                            name="sw_{{ sw.id }}_quantity"
+                                                            value="{{ selected[sw.id].quantity if is_selected else 1 }}"
+                                                            min="1" max="99">
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="pm-empty-state">
+                        <i class="bi bi-window-stack d-block"></i>
+                        <p>
+                            No software products have been configured yet.
+                            {% if current_user.has_role('admin', 'it_staff') %}
+                            <a href="{{ url_for('equipment.software_create') }}">Add software products</a> first.
+                            {% endif %}
+                        </p>
+                    </div>
                     {% endif %}
-                </p>
+                </div>
             </div>
-            {% endif %}
+        </div>
+
+        {# ── Tier 1: Running cost panel (sticky sidebar) ── #}
+        <div class="col-lg-4">
+            <div id="running-cost-panel" data-authorized-count="{{ position.authorized_count }}"
+                style="position: sticky; top: 1rem;">
+                <div class="pm-card">
+                    <div class="card-header">
+                        <i class="bi bi-calculator me-2"></i>Estimated Cost
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center mb-3">
+                            <div class="pm-text-muted" style="font-size: 0.8rem;">
+                                <span id="cost-panel-item-count">0 items selected</span>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="pm-text-muted">Per person</span>
+                            <span id="cost-panel-per-person" style="font-weight: 600; font-size: 1.1rem;">$0.00</span>
+                        </div>
+                        <hr class="my-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="pm-text-muted">
+                                All {{ position.authorized_count }} position{{ 's' if position.authorized_count != 1 }}
+                            </span>
+                            <span id="cost-panel-total"
+                                style="font-weight: 700; font-size: 1.25rem; color: var(--pm-brand-600);">$0.00</span>
+                        </div>
+                        <div class="mt-2 text-center">
+                            <small class="pm-text-muted">
+                                <i class="bi bi-info-circle me-1"></i>Estimated — final costs confirmed by IT
+                            </small>
+                        </div>
+                        <div class="mt-2 text-center">
+                            <small class="pm-text-muted">
+                                Shared license costs are calculated on the summary page.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -124,7 +226,7 @@
         <a href="{{ url_for('requirements.select_hardware', position_id=position.id) }}"
             class="pm-btn pm-btn-secondary">
             <i class="bi bi-arrow-left"></i>
-            Back to Hardware
+            Back to Equipment
         </a>
         <button type="submit" class="pm-btn pm-btn-primary">
             Save &amp; View Summary

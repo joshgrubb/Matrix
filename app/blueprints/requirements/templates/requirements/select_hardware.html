@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Select Hardware — {{ position.position_title }}{% endblock %}
+{% block title %}Select Equipment — {{ position.position_title }}{% endblock %}
 
 {% block content %}
 {# ── Step breadcrumb ── #}
@@ -10,7 +10,7 @@
             <li class="breadcrumb-item">
                 <a href="{{ url_for('requirements.select_position') }}">Select Position</a>
             </li>
-            <li class="breadcrumb-item active" aria-current="page">Hardware</li>
+            <li class="breadcrumb-item active" aria-current="page">Equipment</li>
             <li class="breadcrumb-item"><span class="pm-text-muted">Software</span></li>
             <li class="breadcrumb-item"><span class="pm-text-muted">Summary</span></li>
         </ol>
@@ -19,94 +19,170 @@
 
 <div class="pm-page-header">
     <div>
-        <h1>Select Hardware</h1>
+        <h1>Select Equipment</h1>
+        {# Tier 1: Hide position code; show title + budgeted positions. #}
         <p>
-            {{ position.position_code }} — {{ position.position_title }}
-            ({{ position.authorized_count }} authorized)
+            {{ position.position_title }}
+            — {{ position.authorized_count }} budgeted position{{ 's' if position.authorized_count != 1 }}
         </p>
     </div>
 </div>
 
-<form method="POST">
+<form method="POST" id="equipment-selection-form" data-step="equipment">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-    <div class="pm-card mb-4">
-        <div class="card-header">
-            <i class="bi bi-2-circle me-2"></i>Step 2: Select Hardware Items
-        </div>
-        <div class="card-body">
-            <p class="pm-text-muted mb-3">
-                Check each hardware item this position requires and set the quantity per person.
-                Items are grouped by hardware type.
-            </p>
+    <div class="row">
+        {# ── Main content column ── #}
+        <div class="col-lg-8">
+            <div class="pm-card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-2-circle me-2"></i>Step 2: Select Equipment
+                </div>
+                <div class="card-body">
+                    {# Tier 1: Updated instruction text with reassurance. #}
+                    <p class="pm-text-muted mb-3">
+                        Check each item this position needs and set the quantity per person.
+                        <br>
+                        <small><i class="bi bi-info-circle me-1"></i>Don't worry about getting it
+                            perfect — IT will review your selections and can help adjust.</small>
+                    </p>
 
-            {% set has_items = items_by_type | length > 0 %}
-            {% if has_items %}
-            {# ── Render one table section per hardware type ── #}
-            {% for hw_type in hardware_types %}
-            {% set type_items = items_by_type.get(hw_type.id, []) %}
-            {% if type_items %}
-            <div class="mb-4">
-                <h6 class="mb-2" style="font-weight: 600;">
-                    <i class="bi bi-tag me-1"></i>{{ hw_type.type_name }}
-                    {% if hw_type.description %}
-                    <small class="pm-text-muted fw-normal">— {{ hw_type.description }}</small>
-                    {% endif %}
-                </h6>
-                <div class="table-responsive">
-                    <table class="table pm-table mb-0">
-                        <thead>
-                            <tr>
-                                <th style="width: 50px;">Select</th>
-                                <th>Hardware Item</th>
-                                <th class="text-end">Est. Cost</th>
-                                <th style="width: 100px;">Qty / Person</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for hw in type_items %}
-                            {% set is_selected = hw.id in selected %}
-                            <tr>
-                                <td class="text-center">
-                                    <input type="checkbox" class="form-check-input" name="hw_{{ hw.id }}_selected"
-                                        value="on" {% if is_selected %}checked{% endif %} id="hw_{{ hw.id }}_selected"
-                                        style="width: 1.2em; height: 1.2em;">
-                                </td>
-                                <td>
-                                    <label for="hw_{{ hw.id }}_selected" style="cursor: pointer; font-weight: 500;">
-                                        {{ hw.name }}
-                                    </label>
-                                    {% if hw.description %}
-                                    <br><small class="pm-text-muted">{{ hw.description }}</small>
+                    {% set has_items = items_by_type | length > 0 %}
+                    {% if has_items %}
+                    {# ── Tier 1: Bootstrap accordion grouped by hardware type ── #}
+                    <div class="accordion" id="hardware-accordion">
+                        {% for hw_type in hardware_types %}
+                        {% set type_items = items_by_type.get(hw_type.id, []) %}
+                        {% if type_items %}
+                        {# Check if any item in this group is already selected. #}
+                        {% set ns = namespace(has_selection=false, selected_count=0) %}
+                        {% for hw in type_items %}
+                        {% if hw.id in selected %}
+                        {% set ns.has_selection = true %}
+                        {% set ns.selected_count = ns.selected_count + 1 %}
+                        {% endif %}
+                        {% endfor %}
+
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button {% if not ns.has_selection %}collapsed{% endif %}"
+                                    type="button" data-bs-toggle="collapse" data-bs-target="#hw-group-{{ hw_type.id }}"
+                                    aria-expanded="{{ 'true' if ns.has_selection else 'false' }}">
+                                    <i class="bi bi-tag me-2"></i>
+                                    {{ hw_type.type_name }}
+                                    <span class="badge bg-secondary ms-2">{{ type_items | length }} item{{ 's' if
+                                        type_items | length != 1 }}</span>
+                                    {% if ns.has_selection %}
+                                    <span class="badge bg-primary ms-1">
+                                        {{ ns.selected_count }} selected
+                                    </span>
                                     {% endif %}
-                                </td>
-                                <td class="text-end pm-cost">
-                                    ${{ "%.2f"|format(hw.estimated_cost) }}
-                                </td>
-                                <td>
-                                    <input type="number" class="form-control form-control-sm"
-                                        name="hw_{{ hw.id }}_quantity"
-                                        value="{{ selected[hw.id].quantity if is_selected else 1 }}" min="1" max="99">
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                                </button>
+                            </h2>
+                            <div id="hw-group-{{ hw_type.id }}"
+                                class="accordion-collapse collapse {% if ns.has_selection %}show{% endif %}"
+                                data-bs-parent="#hardware-accordion">
+                                <div class="accordion-body p-0">
+                                    <div class="table-responsive">
+                                        <table class="table pm-table mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width: 50px;">Select</th>
+                                                    <th>Item</th>
+                                                    {# Tier 1: "Est. Cost" → "Cost Each" #}
+                                                    <th class="text-end">Cost Each</th>
+                                                    {# Tier 1: "Qty / Person" → "Per Person" #}
+                                                    <th style="width: 100px;">Per Person</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for hw in type_items %}
+                                                {% set is_selected = hw.id in selected %}
+                                                {# Tier 1: data-unit-cost for JS cost panel. #}
+                                                <tr data-unit-cost="{{ hw.estimated_cost }}">
+                                                    <td class="text-center">
+                                                        <input type="checkbox" class="form-check-input"
+                                                            name="hw_{{ hw.id }}_selected" value="on" {% if is_selected
+                                                            %}checked{% endif %} id="hw_{{ hw.id }}_selected"
+                                                            style="width: 1.2em; height: 1.2em;">
+                                                    </td>
+                                                    <td>
+                                                        <label for="hw_{{ hw.id }}_selected"
+                                                            style="cursor: pointer; font-weight: 500;">
+                                                            {{ hw.name }}
+                                                        </label>
+                                                        {% if hw.description %}
+                                                        <br><small class="pm-text-muted">{{ hw.description }}</small>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="text-end pm-cost">
+                                                        ${{ "%.2f"|format(hw.estimated_cost) }}
+                                                    </td>
+                                                    <td>
+                                                        <input type="number" class="form-control form-control-sm"
+                                                            name="hw_{{ hw.id }}_quantity"
+                                                            value="{{ selected[hw.id].quantity if is_selected else 1 }}"
+                                                            min="1" max="99">
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="pm-empty-state">
+                        <i class="bi bi-cpu d-block"></i>
+                        <p>
+                            No equipment items have been configured yet.
+                            {% if current_user.has_role('admin', 'it_staff') %}
+                            <a href="{{ url_for('equipment.hardware_create') }}">Add equipment items</a> first.
+                            {% endif %}
+                        </p>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
-            {% endif %}
-            {% endfor %}
-            {% else %}
-            <div class="pm-empty-state">
-                <i class="bi bi-cpu d-block"></i>
-                <p>
-                    No hardware items have been configured yet.
-                    {% if current_user.has_role('admin', 'it_staff') %}
-                    <a href="{{ url_for('equipment.hardware_create') }}">Add hardware items</a> first.
-                    {% endif %}
-                </p>
+        </div>
+
+        {# ── Tier 1: Running cost panel (sticky sidebar) ── #}
+        <div class="col-lg-4">
+            <div id="running-cost-panel" data-authorized-count="{{ position.authorized_count }}"
+                style="position: sticky; top: 1rem;">
+                <div class="pm-card">
+                    <div class="card-header">
+                        <i class="bi bi-calculator me-2"></i>Estimated Cost
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center mb-3">
+                            <div class="pm-text-muted" style="font-size: 0.8rem;">
+                                <span id="cost-panel-item-count">0 items selected</span>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="pm-text-muted">Per person</span>
+                            <span id="cost-panel-per-person" style="font-weight: 600; font-size: 1.1rem;">$0.00</span>
+                        </div>
+                        <hr class="my-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="pm-text-muted">
+                                All {{ position.authorized_count }} position{{ 's' if position.authorized_count != 1 }}
+                            </span>
+                            <span id="cost-panel-total"
+                                style="font-weight: 700; font-size: 1.25rem; color: var(--pm-brand-600);">$0.00</span>
+                        </div>
+                        <div class="mt-2 text-center">
+                            <small class="pm-text-muted"><i class="bi bi-info-circle me-1"></i>Estimated — final costs
+                                confirmed by IT</small>
+                        </div>
+                    </div>
+                </div>
             </div>
-            {% endif %}
         </div>
     </div>
 
