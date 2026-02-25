@@ -4,22 +4,10 @@
 
 {% block content %}
 {# Tier 2 (#11): Wizard step indicator replaces old breadcrumb. #}
+
 {% set current_step = 3 %}
-{% include "requirements/_step_indicator.html" %}
-
-<div class="pm-page-header">
-    <div>
-        {# Primary context: Position #}
-        {% include "requirements/_position_header.html" %}
-
-        {# Secondary context: Step #}
-        <div class="mt-2">
-            <span class="pm-text-muted" style="font-weight: 500;">
-                Step 3: Select Software
-            </span>
-        </div>
-    </div>
-</div>
+{% set step_title = "Select Software" %}
+{% include "requirements/_position_header.html" %}
 
 <form method="POST" id="equipment-selection-form" data-step="software">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
