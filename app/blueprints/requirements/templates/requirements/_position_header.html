@@ -1,12 +1,49 @@
+{#
+Shared wizard header partial for ALL requirements flow pages (Steps 1–4).
+
+Provides a consistent three-column layout:
+Left: Page title + subtitle (position title on Steps 2–4,
+generic heading on Step 1).
+Center: Step indicator (reuses _step_indicator.html).
+Right: Current step number and label.
+
+Usage (Steps 2–4, position available):
+{% set current_step = 2 %}
+{% set step_title = "Select Equipment" %}
+{% include "requirements/_position_header.html" %}
+
+Usage (Step 1, no position yet):
+{% set current_step = 1 %}
+{% set step_title = "Choose Position" %}
+{% set header_title = "Set Up Position Equipment" %}
+{% set header_subtitle = "Select a position to set up its equipment and software." %}
+{% include "requirements/_position_header.html" %}
+
+Expects template variables:
+current_step (int): 1=Position, 2=Equipment, 3=Software, 4=Summary
+step_title (str): Label for the current step (shown in right column)
+position (Position | None): Position object; None on Step 1
+
+Optional overrides (used on Step 1 when no position exists):
+header_title (str): Custom h1 text (defaults to position.position_title)
+header_subtitle (str): Custom subtitle text
+#}
+
 {% set total_steps = total_steps if total_steps is defined else 4 %}
+
+{# Determine whether we have a position context. #}
+{% set has_position = position is defined and position is not none %}
 
 <div class="row align-items-center mb-4">
 
-    {# Left + Center (col-lg-8) #}
+    {# ── Left + Center (col-lg-8) ── #}
     <div class="col-lg-8">
         <div class="row align-items-center">
 
+            {# ── Left column: Title + subtitle ── #}
             <div class="col-md-6">
+                {% if has_position %}
+                {# Steps 2–4: Show position title and budgeted count. #}
                 <h1 class="mb-1">{{ position.position_title }}</h1>
 
                 <div class="pm-text-muted">
@@ -20,8 +57,18 @@
                     • <span class="pm-badge pm-badge-warning ms-1">Draft</span>
                     {% endif %}
                 </div>
+
+                {% else %}
+                {# Step 1: No position selected yet — show a generic heading. #}
+                <h1 class="mb-1">{{ header_title | default('Set Up Position Equipment') }}</h1>
+
+                <div class="pm-text-muted">
+                    {{ header_subtitle | default('Select a position to configure.') }}
+                </div>
+                {% endif %}
             </div>
 
+            {# ── Center column: Step indicator ── #}
             <div class="col-md-6 text-center">
                 {% include "requirements/_step_indicator.html" %}
             </div>
@@ -29,7 +76,7 @@
         </div>
     </div>
 
-    {# Right (col-lg-4) aligns with Estimated Cost card #}
+    {# ── Right column (col-lg-4): Step number + label ── #}
     <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
         <div class="pm-text-muted" style="font-size: 0.8rem;">
             Step {{ current_step }} of {{ total_steps }}

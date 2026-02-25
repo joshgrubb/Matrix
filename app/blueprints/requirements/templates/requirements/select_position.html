@@ -3,17 +3,12 @@
 {% block title %}Select Position — Position Equipment{% endblock %}
 
 {% block content %}
-{# Tier 2 (#11): Wizard step indicator replaces old breadcrumb. #}
+{# ── Shared wizard header (matches Steps 2–4 layout) ── #}
 {% set current_step = 1 %}
-{% include "requirements/_step_indicator.html" %}
-
-<div class="pm-page-header">
-    <div>
-        {# Tier 1: "Configure Position Requirements" → friendlier wording. #}
-        <h1><i class="bi bi-list-check me-2"></i>Set Up Position Equipment</h1>
-        <p>Select a position to set up its equipment and software.</p>
-    </div>
-</div>
+{% set step_title = "Choose Position" %}
+{% set header_title = "Set Up Position Equipment" %}
+{% set header_subtitle = "Select a position to set up its equipment and software." %}
+{% include "requirements/_position_header.html" %}
 
 <div class="row justify-content-center">
     <div class="col-lg-8">
