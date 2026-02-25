@@ -145,7 +145,7 @@ def dev_login():
 
     This route is only available when ``FLASK_ENV=development``.
     """
-    if not current_app.debug:
+    if not current_app.debug or not current_app.config.get("DEV_LOGIN_ENABLED"):
         flash("Development login is only available in debug mode.", "danger")
         return redirect(url_for("auth.login_page"))
 
@@ -214,7 +214,7 @@ def dev_login_picker():
 
     This route is only available when ``FLASK_ENV=development``.
     """
-    if not current_app.debug:
+    if not current_app.debug or not current_app.config.get("DEV_LOGIN_ENABLED"):
         flash("Development login is only available in debug mode.", "danger")
         return redirect(url_for("auth.login_page"))
 

@@ -156,20 +156,32 @@ def get_positions(
     if not include_inactive:
         query = query.filter(Position.is_active == True)
 
+    # Track whether Division has already been joined to prevent
+    # the duplicate-join error from SQL Server (error 1013).
+    division_joined = False
+
     # Filter by division or department.
     if division_id is not None:
+        # No join needed — division_id lives on Position directly.
         query = query.filter(Position.division_id == division_id)
     elif department_id is not None:
-        # Join to divisions to filter by department.
-        query = query.join(Division).filter(Division.department_id == department_id)
+        # Join to Division so we can filter by parent department.
+        query = query.join(Division, Position.division_id == Division.id)
+        query = query.filter(Division.department_id == department_id)
+        division_joined = True
 
-    # Scope filtering.
+    # Scope filtering — only applies to non-org-wide users.
     if not user.has_org_scope():
         dept_ids = user.scoped_department_ids()
         div_ids = user.scoped_division_ids()
 
         if dept_ids or div_ids:
-            query = query.join(Division, Position.division_id == Division.id)
+            # Only join Division if it hasn't already been joined above.
+            if not division_joined:
+                query = query.join(Division, Position.division_id == Division.id)
+
+            # Build scope conditions: user sees positions in their
+            # scoped departments OR their scoped divisions.
             conditions = []
             if dept_ids:
                 conditions.append(Division.department_id.in_(dept_ids))
