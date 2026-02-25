@@ -342,6 +342,12 @@ def position_summary(position_id):
         dept_avg = cost_service.get_department_average_cost_per_person(
             department_id=cost_summary.department_id,
         )
+        # Convert Decimal values to float so Jinja2 arithmetic with
+        # float literals (e.g. avg_cost * 1.1) works without TypeError.
+        if dept_avg is not None:
+            for key in ("avg_per_person", "min_per_person", "max_per_person"):
+                if key in dept_avg:
+                    dept_avg[key] = float(dept_avg[key])
     except Exception:
         # Non-critical — the summary page works without this data.
         logger.warning(
