@@ -1,23 +1,20 @@
-<div class="pm-page-header">
-    <div>
-        <h1>{{ page_title }}</h1>
-        <p>
-            {{ position.position_title }}
-            — {{ position.authorized_count }} budgeted position{{ 's' if position.authorized_count != 1 }}
+{# Primary object context only #}
+<h1 class="mb-1">{{ position.position_title }}</h1>
 
-            {% if position.requirements_status == 'submitted' %}
-            <span class="pm-badge pm-badge-info ms-2">
-                <i class="bi bi-clock me-1"></i>Submitted
-            </span>
-            {% elif position.requirements_status == 'reviewed' %}
-            <span class="pm-badge pm-badge-success ms-2">
-                <i class="bi bi-check-circle me-1"></i>Reviewed
-            </span>
-            {% elif position.requirements_status == 'draft' %}
-            <span class="pm-badge pm-badge-warning ms-2">
-                <i class="bi bi-pencil me-1"></i>Draft
-            </span>
-            {% endif %}
-        </p>
-    </div>
+<div class="pm-text-muted">
+    {{ position.authorized_count }} budgeted position{{ 's' if position.authorized_count != 1 }}
+
+    {% if position.requirements_status == 'submitted' %}
+    • <span class="pm-badge pm-badge-info ms-1">
+        <i class="bi bi-clock me-1"></i>Submitted
+    </span>
+    {% elif position.requirements_status == 'reviewed' %}
+    • <span class="pm-badge pm-badge-success ms-1">
+        <i class="bi bi-check-circle me-1"></i>Reviewed
+    </span>
+    {% elif position.requirements_status == 'draft' %}
+    • <span class="pm-badge pm-badge-warning ms-1">
+        <i class="bi bi-pencil me-1"></i>Draft
+    </span>
+    {% endif %}
 </div>

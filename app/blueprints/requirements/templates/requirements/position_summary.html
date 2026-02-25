@@ -9,18 +9,15 @@
 
 <div class="pm-page-header">
     <div>
-        <h1>Position Summary</h1>
-        {# Tier 1: Hide position code; show title + budgeted positions. #}
-        <p>
-            {% include "requirements/_position_header.html" with context %}
-        </p>
-    </div>
-    <div>
-        <a href="{{ url_for('requirements.select_hardware', position_id=position.id) }}"
-            class="pm-btn pm-btn-secondary pm-btn-sm">
-            <i class="bi bi-pencil"></i>
-            Edit Selections
-        </a>
+        {# Primary context: Position #}
+        {% include "requirements/_position_header.html" %}
+
+        {# Secondary context: Step #}
+        <div class="mt-2">
+            <span class="pm-text-muted" style="font-weight: 500;">
+                Position Summary
+            </span>
+        </div>
     </div>
 </div>
 

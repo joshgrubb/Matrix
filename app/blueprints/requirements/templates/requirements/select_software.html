@@ -9,12 +9,15 @@
 
 <div class="pm-page-header">
     <div>
-        <h1>Select Software</h1>
-        {# Tier 1: Hide position code; show title + budgeted positions. #}
-        <p>
-            {% include "requirements/_position_header.html" with context %} — {{ position.authorized_count }} budgeted
-            position{{ 's' if position.authorized_count != 1 }}
-        </p>
+        {# Primary context: Position #}
+        {% include "requirements/_position_header.html" %}
+
+        {# Secondary context: Step #}
+        <div class="mt-2">
+            <span class="pm-text-muted" style="font-weight: 500;">
+                Step 3: Select Software
+            </span>
+        </div>
     </div>
 </div>
 
