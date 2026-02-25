@@ -12,22 +12,7 @@
         <h1>Position Summary</h1>
         {# Tier 1: Hide position code; show title + budgeted positions. #}
         <p>
-            {{ position.position_title }}
-            — {{ position.authorized_count }} budgeted position{{ 's' if position.authorized_count != 1 }}
-            {# Tier 3 (#15): Status badge. #}
-            {% if position.requirements_status == 'submitted' %}
-            <span class="pm-badge pm-badge-info ms-2">
-                <i class="bi bi-clock me-1"></i>Submitted
-            </span>
-            {% elif position.requirements_status == 'reviewed' %}
-            <span class="pm-badge pm-badge-success ms-2">
-                <i class="bi bi-check-circle me-1"></i>Reviewed
-            </span>
-            {% elif position.requirements_status == 'draft' %}
-            <span class="pm-badge pm-badge-warning ms-2">
-                <i class="bi bi-pencil me-1"></i>Draft
-            </span>
-            {% endif %}
+            {% include "requirements/_position_header.html" with context %}
         </p>
     </div>
     <div>

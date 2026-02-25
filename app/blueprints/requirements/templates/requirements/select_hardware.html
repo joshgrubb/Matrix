@@ -12,8 +12,7 @@
         <h1>Select Equipment</h1>
         {# Tier 1: Hide position code; show title + budgeted positions. #}
         <p>
-            {{ position.position_title }}
-            — {{ position.authorized_count }} budgeted position{{ 's' if position.authorized_count != 1 }}
+            {% include "requirements/_position_header.html" %}
         </p>
     </div>
 </div>

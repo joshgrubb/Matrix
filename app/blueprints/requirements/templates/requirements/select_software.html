@@ -12,8 +12,8 @@
         <h1>Select Software</h1>
         {# Tier 1: Hide position code; show title + budgeted positions. #}
         <p>
-            {{ position.position_title }}
-            — {{ position.authorized_count }} budgeted position{{ 's' if position.authorized_count != 1 }}
+            {% include "requirements/_position_header.html" with context %} — {{ position.authorized_count }} budgeted
+            position{{ 's' if position.authorized_count != 1 }}
         </p>
     </div>
 </div>
