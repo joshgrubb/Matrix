@@ -20,6 +20,14 @@ Tier 2 UX Changes Applied:
     - htmx_positions_with_requirements(): Returns position <option>
       elements for only those positions that already have equipment
       configured — used by the "copy from" dropdown.  (#8)
+
+Tier 3 UX Changes Applied:
+    - select_hardware() and select_software() now pass common_items
+      (set of item IDs commonly used in the position's division)
+      for "Suggested for your division" badges.  (#18)
+    - position_summary() sets requirements_status to 'submitted'
+      when the position has requirements, and passes department
+      average cost data for comparative context.  (#15, #16)
 """
 
 import logging
@@ -100,6 +108,20 @@ def select_hardware(position_id):
                 user_id=current_user.id,
             )
             flash("Hardware selections saved.", "success")
+            # Tier 3 (#15): Mark position as 'draft' if not yet
+            # submitted — the user has started configuring.
+            try:
+                current_status = requirement_service.get_requirements_status(
+                    position_id
+                )
+                if current_status is None:
+                    requirement_service.update_requirements_status(
+                        position_id=position_id,
+                        status="draft",
+                        user_id=current_user.id,
+                    )
+            except ValueError:
+                pass  # Non-critical.
             return redirect(
                 url_for(
                     "requirements.select_software",
@@ -140,6 +162,12 @@ def select_hardware(position_id):
     # Tier 2 (#9): Fetch popularity counts for "Used by N positions".
     hw_usage_counts = requirement_service.get_hardware_usage_counts()
 
+    # Tier 3 (#18): Fetch commonly-used items in this division for
+    # "Suggested for your division" badges.
+    common_hw_ids = requirement_service.get_division_common_hardware(
+        division_id=position.division_id,
+    )
+
     return render_template(
         "requirements/select_hardware.html",
         position=position,
@@ -147,6 +175,7 @@ def select_hardware(position_id):
         items_by_type=items_by_type,
         selected=selected,
         usage_counts=hw_usage_counts,
+        common_items=common_hw_ids,
     )
 
 
@@ -188,6 +217,20 @@ def select_software(position_id):
                 user_id=current_user.id,
             )
             flash("Software selections saved.", "success")
+            # Tier 3 (#15): Mark position as 'draft' if not yet
+            # submitted — the user has started configuring.
+            try:
+                current_status = requirement_service.get_requirements_status(
+                    position_id
+                )
+                if current_status is None:
+                    requirement_service.update_requirements_status(
+                        position_id=position_id,
+                        status="draft",
+                        user_id=current_user.id,
+                    )
+            except ValueError:
+                pass  # Non-critical.
             return redirect(
                 url_for(
                     "requirements.position_summary",
@@ -227,6 +270,12 @@ def select_software(position_id):
     # Tier 2 (#9): Fetch popularity counts for "Used by N positions".
     sw_usage_counts = requirement_service.get_software_usage_counts()
 
+    # Tier 3 (#18): Fetch commonly-used items in this division for
+    # "Suggested for your division" badges.
+    common_sw_ids = requirement_service.get_division_common_software(
+        division_id=position.division_id,
+    )
+
     return render_template(
         "requirements/select_software.html",
         position=position,
@@ -234,6 +283,7 @@ def select_software(position_id):
         items_by_type=items_by_type,
         selected=selected,
         usage_counts=sw_usage_counts,
+        common_items=common_sw_ids,
     )
 
 
@@ -264,10 +314,46 @@ def position_summary(position_id):
     # Calculate costs using the cost service.
     cost_summary = cost_service.calculate_position_cost(position_id)
 
+    # Tier 3 (#15): Set requirements_status to 'submitted' when the
+    # user views the summary page and the position has requirements.
+    has_requirements = (
+        len(cost_summary.hardware_lines) > 0 or len(cost_summary.software_lines) > 0
+    )
+    if has_requirements:
+        current_status = requirement_service.get_requirements_status(position_id)
+        # Only upgrade to 'submitted' if not already reviewed.
+        if current_status not in ("submitted", "reviewed"):
+            try:
+                requirement_service.update_requirements_status(
+                    position_id=position_id,
+                    status="submitted",
+                    user_id=current_user.id,
+                )
+            except ValueError:
+                # Non-critical — log and continue.
+                logger.warning(
+                    "Could not update requirements status for position %d",
+                    position_id,
+                )
+
+    # Tier 3 (#16): Fetch department average cost for context.
+    dept_avg = None
+    try:
+        dept_avg = cost_service.get_department_average_cost_per_person(
+            department_id=cost_summary.department_id,
+        )
+    except Exception:
+        # Non-critical — the summary page works without this data.
+        logger.warning(
+            "Could not compute department average for department %d",
+            cost_summary.department_id,
+        )
+
     return render_template(
         "requirements/position_summary.html",
         position=position,
         cost_summary=cost_summary,
+        dept_avg=dept_avg,
     )
 
 

@@ -11,6 +11,13 @@ Tier 2 Additions:
     - ``get_hardware_usage_counts()``: Return a dict mapping each
       hardware_id to the number of positions that use it.
     - ``get_software_usage_counts()``: Same for software_id.
+
+Tier 3 Additions:
+    - ``update_requirements_status()``: Set the workflow status
+      (draft / submitted / reviewed) on a position.  (#15)
+    - ``get_division_common_hardware()``: Return hardware items used
+      by a threshold percentage of positions in a division.  (#18)
+    - ``get_division_common_software()``: Same for software.  (#18)
 """
 
 import logging
@@ -20,6 +27,7 @@ from sqlalchemy import func
 
 from app.extensions import db
 from app.models.budget import RequirementHistory
+from app.models.organization import Division, Position
 from app.models.requirement import PositionHardware, PositionSoftware
 from app.services import audit_service
 
@@ -702,6 +710,189 @@ def get_software_usage_counts() -> dict[int, int]:
         .all()
     )
     return {row[0]: row[1] for row in rows}
+
+
+# =========================================================================
+# Tier 3: Submission Status Tracking (#15)
+# =========================================================================
+
+# Valid status transitions.  None (not started) can move to any state.
+_VALID_STATUSES = {None, "draft", "submitted", "reviewed"}
+
+
+def update_requirements_status(
+    position_id: int,
+    status: str | None,
+    user_id: int | None = None,
+) -> None:
+    """
+    Set the equipment-setup workflow status on a position.
+
+    Valid statuses:
+        None        — Not started (reset).
+        'draft'     — Partially configured.
+        'submitted' — User completed the wizard.
+        'reviewed'  — IT staff approved.
+
+    Args:
+        position_id: The position to update.
+        status:      New status value.
+        user_id:     ID of the user making the change.
+
+    Raises:
+        ValueError: If the position is not found or the status
+                    value is invalid.
+    """
+    if status not in _VALID_STATUSES:
+        raise ValueError(
+            f"Invalid requirements status '{status}'. "
+            f"Must be one of: {_VALID_STATUSES}"
+        )
+
+    position = db.session.get(Position, position_id)
+    if position is None:
+        raise ValueError(f"Position ID {position_id} not found.")
+
+    previous_status = position.requirements_status
+    if previous_status == status:
+        # No change needed.
+        return
+
+    position.requirements_status = status
+    position.updated_at = datetime.now(timezone.utc)
+
+    audit_service.log_change(
+        user_id=user_id,
+        action_type="UPDATE",
+        entity_type="org.position.requirements_status",
+        entity_id=position_id,
+        previous_value={"requirements_status": previous_status},
+        new_value={"requirements_status": status},
+    )
+    db.session.commit()
+
+    logger.info(
+        "Updated requirements status for position %d: %s → %s",
+        position_id,
+        previous_status,
+        status,
+    )
+
+
+def get_requirements_status(position_id: int) -> str | None:
+    """
+    Return the current requirements_status for a position.
+
+    Returns None if the position has no status set (not started)
+    or if the position is not found.
+    """
+    position = db.session.get(Position, position_id)
+    if position is None:
+        return None
+    return position.requirements_status
+
+
+# =========================================================================
+# Tier 3: Division Common Items / "Suggested Setup" (#18)
+# =========================================================================
+
+
+def get_division_common_hardware(
+    division_id: int,
+    threshold: float = 0.4,
+) -> set[int]:
+    """
+    Return hardware_ids that are used by at least ``threshold`` fraction
+    of configured positions in the given division.
+
+    For example, with threshold=0.4 and 10 positions in the division
+    where 5 have requirements, an item used by 2+ of those 5 positions
+    is considered "common."
+
+    This enables the "Suggested for your division" badges without
+    requiring manual template definitions.  The suggestions improve
+    automatically as more positions are configured.
+
+    Args:
+        division_id: The division to analyze.
+        threshold:   Minimum fraction (0.0–1.0) of configured
+                     positions that must use the item.
+
+    Returns:
+        Set of hardware_id values that meet the threshold.
+    """
+    # Find positions in this division that have at least one requirement.
+    position_ids_with_hw = (
+        db.session.query(PositionHardware.position_id.distinct())
+        .join(Position, PositionHardware.position_id == Position.id)
+        .filter(
+            Position.division_id == division_id,
+            Position.is_active == True,  # noqa: E712
+        )
+        .all()
+    )
+    configured_count = len(position_ids_with_hw)
+    if configured_count == 0:
+        return set()
+
+    # Minimum number of positions that must use an item.
+    min_positions = max(1, int(configured_count * threshold))
+
+    # Find hardware items meeting the threshold within this division.
+    position_id_list = [row[0] for row in position_ids_with_hw]
+    rows = (
+        db.session.query(PositionHardware.hardware_id)
+        .filter(PositionHardware.position_id.in_(position_id_list))
+        .group_by(PositionHardware.hardware_id)
+        .having(func.count(PositionHardware.position_id.distinct()) >= min_positions)
+        .all()
+    )
+    return {row[0] for row in rows}
+
+
+def get_division_common_software(
+    division_id: int,
+    threshold: float = 0.4,
+) -> set[int]:
+    """
+    Return software_ids that are used by at least ``threshold`` fraction
+    of configured positions in the given division.
+
+    Same logic as ``get_division_common_hardware()`` but for software.
+
+    Args:
+        division_id: The division to analyze.
+        threshold:   Minimum fraction (0.0–1.0) of configured
+                     positions that must use the item.
+
+    Returns:
+        Set of software_id values that meet the threshold.
+    """
+    # Find positions in this division that have at least one requirement.
+    position_ids_with_sw = (
+        db.session.query(PositionSoftware.position_id.distinct())
+        .join(Position, PositionSoftware.position_id == Position.id)
+        .filter(
+            Position.division_id == division_id,
+            Position.is_active == True,  # noqa: E712
+        )
+        .all()
+    )
+    configured_count = len(position_ids_with_sw)
+    if configured_count == 0:
+        return set()
+
+    min_positions = max(1, int(configured_count * threshold))
+
+    position_id_list = [row[0] for row in position_ids_with_sw]
+    rows = (
+        db.session.query(PositionSoftware.software_id)
+        .filter(PositionSoftware.position_id.in_(position_id_list))
+        .group_by(PositionSoftware.software_id)
+        .having(func.count(PositionSoftware.position_id.distinct()) >= min_positions)
+        .all()
+    )
+    return {row[0] for row in rows}
 
 
 # =========================================================================

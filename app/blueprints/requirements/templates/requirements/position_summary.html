@@ -14,6 +14,20 @@
         <p>
             {{ position.position_title }}
             — {{ position.authorized_count }} budgeted position{{ 's' if position.authorized_count != 1 }}
+            {# Tier 3 (#15): Status badge. #}
+            {% if position.requirements_status == 'submitted' %}
+            <span class="pm-badge pm-badge-info ms-2">
+                <i class="bi bi-clock me-1"></i>Submitted
+            </span>
+            {% elif position.requirements_status == 'reviewed' %}
+            <span class="pm-badge pm-badge-success ms-2">
+                <i class="bi bi-check-circle me-1"></i>Reviewed
+            </span>
+            {% elif position.requirements_status == 'draft' %}
+            <span class="pm-badge pm-badge-warning ms-2">
+                <i class="bi bi-pencil me-1"></i>Draft
+            </span>
+            {% endif %}
         </p>
     </div>
     <div>
@@ -25,10 +39,25 @@
     </div>
 </div>
 
-{# Tier 1: Brief explanation above cost cards. #}
-<p class="pm-text-muted mb-3">
-    Here's the estimated annual IT cost for each person in this position.
-</p>
+{# Tier 1: Brief explanation above cost cards.
+Tier 3 (#17): Monthly/annual toggle next to the explanation. #}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <p class="pm-text-muted mb-0">
+        Here's the estimated <span id="cost-period-label">annual</span> IT cost
+        for each person in this position.
+    </p>
+    {# Tier 3 (#17): Monthly / Annual toggle. #}
+    <div class="btn-group btn-group-sm" role="group" aria-label="Cost period toggle" id="cost-period-toggle">
+        <button type="button" class="btn btn-outline-secondary active" data-period="annual"
+            onclick="setCostPeriod('annual')">
+            Annual
+        </button>
+        <button type="button" class="btn btn-outline-secondary" data-period="monthly"
+            onclick="setCostPeriod('monthly')">
+            Monthly
+        </button>
+    </div>
+</div>
 
 {# ── Cost summary cards ── #}
 <div class="row g-3 mb-4">
@@ -38,7 +67,8 @@
                 <div class="pm-stat-icon pm-stat-icon--blue">
                     <i class="bi bi-cpu"></i>
                 </div>
-                <div class="pm-stat-value pm-cost">${{ "%.2f"|format(cost_summary.hardware_total) }}</div>
+                <div class="pm-stat-value pm-cost-switchable" data-annual="{{ cost_summary.hardware_total }}">${{
+                    "%.2f"|format(cost_summary.hardware_total) }}</div>
                 <div class="pm-stat-label">Equipment Cost</div>
             </div>
         </div>
@@ -49,7 +79,8 @@
                 <div class="pm-stat-icon" style="background: var(--pm-success-bg); color: var(--pm-success);">
                     <i class="bi bi-window-stack"></i>
                 </div>
-                <div class="pm-stat-value pm-cost">${{ "%.2f"|format(cost_summary.software_total) }}</div>
+                <div class="pm-stat-value pm-cost-switchable" data-annual="{{ cost_summary.software_total }}">${{
+                    "%.2f"|format(cost_summary.software_total) }}</div>
                 <div class="pm-stat-label">Software Cost</div>
             </div>
         </div>
@@ -60,12 +91,55 @@
                 <div class="pm-stat-icon" style="background: var(--pm-warning-bg); color: var(--pm-warning);">
                     <i class="bi bi-calculator"></i>
                 </div>
-                <div class="pm-stat-value pm-cost">${{ "%.2f"|format(cost_summary.grand_total) }}</div>
+                <div class="pm-stat-value pm-cost-switchable" data-annual="{{ cost_summary.grand_total }}">${{
+                    "%.2f"|format(cost_summary.grand_total) }}</div>
                 <div class="pm-stat-label">Total Estimated Cost</div>
             </div>
         </div>
     </div>
 </div>
+
+{# ── Tier 3 (#16): Department average cost context ── #}
+{% if dept_avg and dept_avg.configured_count >= 2 %}
+<div class="pm-card mb-4">
+    <div class="card-body py-3">
+        <div class="d-flex align-items-center gap-3">
+            <i class="bi bi-bar-chart fs-5 pm-text-muted"></i>
+            <div>
+                {% set this_cost = cost_summary.total_per_person %}
+                {% set avg_cost = dept_avg.avg_per_person %}
+                {% if this_cost <= avg_cost * 1.1 and this_cost>= avg_cost * 0.9 %}
+                    {# Within 10% of average — "typical". #}
+                    <span style="font-weight: 500;">
+                        This position's cost is <strong>typical</strong> for your department.
+                    </span>
+                    {% elif this_cost > avg_cost * 1.1 %}
+                    <span style="font-weight: 500;">
+                        This position's cost is <strong>above average</strong> for your department.
+                    </span>
+                    {% else %}
+                    <span style="font-weight: 500;">
+                        This position's cost is <strong>below average</strong> for your department.
+                    </span>
+                    {% endif %}
+                    <br>
+                    <small class="pm-text-muted">
+                        Department average:
+                        <span class="pm-cost-switchable" data-annual="{{ avg_cost }}">${{ "%.2f"|format(avg_cost)
+                            }}</span>/person/<span class="pm-period-suffix">yr</span>
+                        across {{ dept_avg.configured_count }} configured position{{ 's' if dept_avg.configured_count !=
+                        1 }}
+                        (range:
+                        <span class="pm-cost-switchable" data-annual="{{ dept_avg.min_per_person }}">${{
+                            "%.2f"|format(dept_avg.min_per_person) }}</span>
+                        – <span class="pm-cost-switchable" data-annual="{{ dept_avg.max_per_person }}">${{
+                            "%.2f"|format(dept_avg.max_per_person) }}</span>)
+                    </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 {# ── Tier 1: IT review reassurance ── #}
 <div class="alert alert-info d-flex align-items-center mb-4" role="alert">
@@ -103,8 +177,14 @@
                             <span class="pm-badge pm-badge-neutral">{{ line.hardware_type_name }}</span>
                         </td>
                         <td class="text-center">{{ line.quantity }}</td>
-                        <td class="text-end pm-cost">${{ "%.2f"|format(line.unit_cost) }}</td>
-                        <td class="text-end pm-cost">${{ "%.2f"|format(line.line_total) }}</td>
+                        <td class="text-end">
+                            <span class="pm-cost-switchable" data-annual="{{ line.unit_cost }}">${{
+                                "%.2f"|format(line.unit_cost) }}</span>
+                        </td>
+                        <td class="text-end">
+                            <span class="pm-cost-switchable" data-annual="{{ line.line_total }}">${{
+                                "%.2f"|format(line.line_total) }}</span>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -141,7 +221,6 @@
                     <tr>
                         <td style="font-weight: 500;">{{ line.software_name }}</td>
                         <td>
-                            {# Tier 1: Friendly license type labels. #}
                             {% if line.license_model == 'per_user' %}
                             <span class="pm-badge pm-badge-info">Individual License</span>
                             {% else %}
@@ -149,8 +228,14 @@
                             {% endif %}
                         </td>
                         <td class="text-center">{{ line.quantity }}</td>
-                        <td class="text-end pm-cost">${{ "%.2f"|format(line.unit_cost) }}</td>
-                        <td class="text-end pm-cost">${{ "%.2f"|format(line.line_total) }}</td>
+                        <td class="text-end">
+                            <span class="pm-cost-switchable" data-annual="{{ line.unit_cost }}">${{
+                                "%.2f"|format(line.unit_cost) }}</span>
+                        </td>
+                        <td class="text-end">
+                            <span class="pm-cost-switchable" data-annual="{{ line.line_total }}">${{
+                                "%.2f"|format(line.line_total) }}</span>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -174,28 +259,42 @@
             <tbody>
                 <tr>
                     <td>Equipment per person</td>
-                    <td class="text-end pm-cost">${{ "%.2f"|format(cost_summary.hardware_total_per_person) }}</td>
+                    <td class="text-end">
+                        <span class="pm-cost-switchable" data-annual="{{ cost_summary.hardware_total_per_person }}">${{
+                            "%.2f"|format(cost_summary.hardware_total_per_person) }}</span>
+                    </td>
                 </tr>
                 <tr>
                     <td>Software per person</td>
-                    <td class="text-end pm-cost">${{ "%.2f"|format(cost_summary.software_total_per_person) }}</td>
+                    <td class="text-end">
+                        <span class="pm-cost-switchable" data-annual="{{ cost_summary.software_total_per_person }}">${{
+                            "%.2f"|format(cost_summary.software_total_per_person) }}</span>
+                    </td>
                 </tr>
                 <tr class="table-active" style="font-weight: 600;">
-                    <td>Total per person</td>
-                    <td class="text-end pm-cost">${{ "%.2f"|format(cost_summary.total_per_person) }}</td>
+                    <td>
+                        Total per person
+                        <small class="pm-text-muted fw-normal">/ <span class="pm-period-suffix">year</span></small>
+                    </td>
+                    <td class="text-end">
+                        <span class="pm-cost-switchable" data-annual="{{ cost_summary.total_per_person }}">${{
+                            "%.2f"|format(cost_summary.total_per_person) }}</span>
+                    </td>
                 </tr>
                 <tr>
-                    {# Tier 1: "authorized" → "budgeted positions" #}
                     <td>× {{ position.authorized_count }} budgeted position{{ 's' if position.authorized_count != 1 }}
                     </td>
-                    <td class="text-end pm-cost fw-bold">${{ "%.2f"|format(cost_summary.grand_total) }}</td>
+                    <td class="text-end fw-bold">
+                        <span class="pm-cost-switchable" data-annual="{{ cost_summary.grand_total }}">${{
+                            "%.2f"|format(cost_summary.grand_total) }}</span>
+                    </td>
                 </tr>
             </tbody>
         </table>
     </div>
 </div>
 
-{# ── Tier 1: Action buttons — clear next steps ── #}
+{# ── Action buttons ── #}
 <div class="pm-card">
     <div class="card-body text-center py-4">
         <h5 class="mb-3">What would you like to do next?</h5>
@@ -216,4 +315,45 @@
         </div>
     </div>
 </div>
+
+{# ── Tier 3 (#17): Monthly / Annual toggle JavaScript ── #}
+<script>
+    /**
+     * Toggle all cost values between annual and monthly display.
+     *
+     * Reads the original annual value from the data-annual attribute
+     * and divides by 12 when monthly is selected.  Updates the period
+     * label, period suffixes, and active button state.
+     *
+     * @param {string} period - 'annual' or 'monthly'.
+     */
+    function setCostPeriod(period) {
+        var divisor = (period === 'monthly') ? 12 : 1;
+
+        // Update all switchable cost values.
+        document.querySelectorAll('.pm-cost-switchable').forEach(function (el) {
+            var annual = parseFloat(el.getAttribute('data-annual') || '0');
+            el.textContent = '$' + (annual / divisor).toFixed(2);
+        });
+
+        // Update the period label in the explanation text.
+        var label = document.getElementById('cost-period-label');
+        if (label) {
+            label.textContent = (period === 'monthly') ? 'monthly' : 'annual';
+        }
+
+        // Update all period suffix spans (e.g., "/yr" → "/mo").
+        document.querySelectorAll('.pm-period-suffix').forEach(function (el) {
+            el.textContent = (period === 'monthly') ? 'month' : 'year';
+        });
+
+        // Update active button state.
+        document.querySelectorAll('#cost-period-toggle button').forEach(function (btn) {
+            var isActive = btn.getAttribute('data-period') === period;
+            btn.classList.toggle('active', isActive);
+            btn.classList.toggle('btn-secondary', isActive);
+            btn.classList.toggle('btn-outline-secondary', !isActive);
+        });
+    }
+</script>
 {% endblock %}

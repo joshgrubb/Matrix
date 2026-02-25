@@ -136,6 +136,18 @@
                                                             != 1 }}
                                                         </small>
                                                         {% endif %}
+                                                        {# Tier 3 (#18): "Suggested" badge for items common in division.
+                                                        #}
+                                                        {% if hw.id in common_items %}
+                                                        <br><small>
+                                                            <span class="pm-badge pm-badge-success"
+                                                                data-bs-toggle="tooltip" data-bs-placement="top"
+                                                                title="Most positions in your division use this item.">
+                                                                <i class="bi bi-star me-1"></i>Suggested for your
+                                                                division
+                                                            </span>
+                                                        </small>
+                                                        {% endif %}
                                                     </td>
                                                     <td class="text-end pm-cost">
                                                         ${{ "%.2f"|format(hw.estimated_cost) }}

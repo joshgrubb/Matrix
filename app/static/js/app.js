@@ -25,6 +25,11 @@
  *   - Disable quantity for unchecked items (#13): Quantity inputs
  *     are disabled (grayed out) when the corresponding checkbox is
  *     unchecked, eliminating visual noise.
+ *
+ * Tier 3 UX Changes:
+ *   - Unsaved changes warning (#19): beforeunload listener warns
+ *     users if they try to navigate away with unsaved changes on
+ *     steps 2–3. Suppressed on form submission.
  */
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -339,5 +344,61 @@ document.addEventListener('DOMContentLoaded', function () {
     tooltipTriggers.forEach(function (el) {
         new bootstrap.Tooltip(el);
     });
+
+
+    // ── Tier 3 (#19): Unsaved changes warning ──────────────────────
+    // On steps 2 and 3 (hardware and software selection), capture the
+    // initial state of all checkboxes and quantities.  If the user
+    // navigates away (via back button, closing the tab, or clicking
+    // a link) without submitting, show the browser's native "unsaved
+    // changes" dialog.
+    //
+    // The guard is suppressed when the form is submitted (the user
+    // clicked "Save & Next" or "Save & View Summary"), so it only
+    // fires for accidental navigation.
+    if (equipmentForm) {
+        /**
+         * Build a snapshot string of the current form state.
+         * Format: "hwId:checked:qty,hwId:checked:qty,..."
+         * This is compared against the initial snapshot to detect changes.
+         *
+         * @returns {string} Serialized form state for comparison.
+         */
+        function captureFormState() {
+            var parts = [];
+            equipmentForm.querySelectorAll('.item-checkbox').forEach(function (cb) {
+                var row = cb.closest('tr');
+                var qtyInput = row ? row.querySelector('.item-quantity') : null;
+                var qty = qtyInput ? qtyInput.value : '1';
+                parts.push(cb.name + ':' + cb.checked + ':' + qty);
+            });
+            return parts.join(',');
+        }
+
+        // Snapshot the state at page load.
+        var initialFormState = captureFormState();
+
+        // Track whether the form was submitted (to suppress the warning).
+        var formIsSubmitting = false;
+
+        equipmentForm.addEventListener('submit', function () {
+            formIsSubmitting = true;
+        });
+
+        // Warn on navigation away if state has changed.
+        window.addEventListener('beforeunload', function (e) {
+            if (formIsSubmitting) {
+                return;  // Form submission — do not warn.
+            }
+            var currentState = captureFormState();
+            if (currentState !== initialFormState) {
+                // Standard browser behavior: set returnValue to trigger
+                // the native "Leave site?" dialog.  The actual message
+                // text is ignored by modern browsers.
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+    }
 
 });

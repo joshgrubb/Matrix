@@ -317,6 +317,77 @@ def get_department_cost_breakdown(user=None) -> list[DepartmentCostSummary]:
 
 
 # =========================================================================
+# Tier 3: Department Average Cost Per Person (#16)
+# =========================================================================
+# Place this section in cost_service.py after get_department_cost_breakdown()
+# and before the tenant software cost helpers.
+
+
+def get_department_average_cost_per_person(
+    department_id: int,
+) -> dict:
+    """
+    Calculate the average per-person cost across all configured
+    positions in a department.
+
+    "Configured" means the position has at least one hardware or
+    software requirement.  Positions with no requirements are excluded
+    so that the average reflects only positions that have gone through
+    the wizard.
+
+    Args:
+        department_id: The department to analyze.
+
+    Returns:
+        A dict with:
+            ``configured_count``: Number of positions with requirements.
+            ``avg_per_person``:   Average total_per_person across those
+                                  positions (Decimal).
+            ``min_per_person``:   Lowest total_per_person.
+            ``max_per_person``:   Highest total_per_person.
+
+        Returns None if no configured positions exist.
+    """
+    # Find all active positions in the department.
+    positions = (
+        Position.query.join(Division, Position.division_id == Division.id)
+        .filter(
+            Division.department_id == department_id,
+            Position.is_active == True,  # noqa: E712
+        )
+        .all()
+    )
+
+    if not positions:
+        return None
+
+    # Calculate cost for each position that has at least one requirement.
+    costs_per_person = []
+    for pos in positions:
+        hw_count = PositionHardware.query.filter_by(position_id=pos.id).count()
+        sw_count = PositionSoftware.query.filter_by(position_id=pos.id).count()
+        if hw_count == 0 and sw_count == 0:
+            # Skip positions with no requirements.
+            continue
+
+        pos_cost = calculate_position_cost(pos.id)
+        costs_per_person.append(pos_cost.total_per_person)
+
+    if not costs_per_person:
+        return None
+
+    total = sum(costs_per_person)
+    count = len(costs_per_person)
+
+    return {
+        "configured_count": count,
+        "avg_per_person": total / count,
+        "min_per_person": min(costs_per_person),
+        "max_per_person": max(costs_per_person),
+    }
+
+
+# =========================================================================
 # Tenant software cost helpers
 # =========================================================================
 
