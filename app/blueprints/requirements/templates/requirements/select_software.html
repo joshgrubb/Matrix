@@ -110,7 +110,7 @@
                                                 <tr
                                                     data-unit-cost="{{ sw.cost_per_license if sw.license_model == 'per_user' else 0 }}">
                                                     <td class="text-center">
-                                                        <input type="checkbox" class="form-check-input item-checkbox"
+                                                        <input type="checkbox" class="form-check-input item-checkbox item-selector"
                                                             name="sw_{{ sw.id }}_selected" value="on" {% if is_selected
                                                             %}checked{% endif %} id="sw_{{ sw.id }}_selected"
                                                             style="width: 1.2em; height: 1.2em;">
