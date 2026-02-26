@@ -62,6 +62,17 @@
                                     {{ hw_type.type_name }}
                                     <span class="badge bg-secondary ms-2">{{ type_items | length }} item{{ 's' if
                                         type_items | length != 1 }}</span>
+                                    {% if hw_type.max_selections == 1 %}
+                                    <span class="badge bg-info ms-1" data-bs-toggle="tooltip"
+                                        title="Only one item can be selected from this type.">
+                                        <i class="bi bi-record-circle me-1"></i>Select one
+                                    </span>
+                                    {% elif hw_type.max_selections and hw_type.max_selections > 1 %}
+                                    <span class="badge bg-info ms-1" data-bs-toggle="tooltip"
+                                        title="Up to {{ hw_type.max_selections }} items can be selected from this type.">
+                                        <i class="bi bi-ui-checks me-1"></i>Max {{ hw_type.max_selections }}
+                                    </span>
+                                    {% endif %}
                                     {% if ns.has_selection %}
                                     <span class="badge bg-primary ms-1">
                                         {{ ns.selected_count }} selected
@@ -105,10 +116,29 @@
                                                 {# Tier 1: data-unit-cost for JS cost panel. #}
                                                 <tr data-unit-cost="{{ hw.estimated_cost }}">
                                                     <td class="text-center">
-                                                        <input type="checkbox" class="form-check-input item-checkbox"
+                                                        {% if hw_type.max_selections == 1 %}
+                                                        {# Single-select: radio button. All radios in this
+                                                        type share the same name so the browser enforces
+                                                        one-at-a-time. The value is the hardware ID. #}
+                                                        <input type="radio"
+                                                            class="form-check-input item-radio item-selector"
+                                                            name="hw_type_{{ hw_type.id }}_selected" value="{{ hw.id }}"
+                                                            {% if is_selected %}checked{% endif %}
+                                                            id="hw_{{ hw.id }}_selected" data-hw-id="{{ hw.id }}"
+                                                            data-max-selections="1"
+                                                            style="width: 1.2em; height: 1.2em;">
+                                                        {% else %}
+                                                        {# Multi-select: checkbox (existing behavior). #}
+                                                        <input type="checkbox"
+                                                            class="form-check-input item-checkbox item-selector"
                                                             name="hw_{{ hw.id }}_selected" value="on" {% if is_selected
                                                             %}checked{% endif %} id="hw_{{ hw.id }}_selected"
-                                                            style="width: 1.2em; height: 1.2em;">
+                                                            data-hw-id="{{ hw.id }}" {% if hw_type.max_selections and
+                                                            hw_type.max_selections> 1 %}
+                                                        data-max-selections="{{ hw_type.max_selections }}"
+                                                        {% endif %}
+                                                        style="width: 1.2em; height: 1.2em;">
+                                                        {% endif %}
                                                     </td>
                                                     <td>
                                                         <label for="hw_{{ hw.id }}_selected"
@@ -148,8 +178,11 @@
                                                             class="form-control form-control-sm item-quantity"
                                                             name="hw_{{ hw.id }}_quantity"
                                                             value="{{ selected[hw.id].quantity if is_selected else 1 }}"
-                                                            min="1" max="99" {% if not is_selected %}disabled{% endif
-                                                            %}>
+                                                            min="1"
+                                                            max="{{ hw_type.max_selections if hw_type.max_selections and hw_type.max_selections > 1 else 99 }}"
+                                                            {% if hw_type.max_selections==1 %} {# Single-select types
+                                                            are always qty 1. #} readonly {% elif not is_selected %}
+                                                            disabled {% endif %}>
                                                     </td>
                                                 </tr>
                                                 {% endfor %}

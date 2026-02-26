@@ -54,6 +54,23 @@
                         </div>
                     </div>
 
+                    {# -- Max Selections -- #}
+                    <div class="mb-3">
+                        <label for="max_selections" class="pm-form-label">
+                            Max Selections
+                        </label>
+                        <input type="number" class="form-control" id="max_selections" name="max_selections" min="0"
+                            step="1"
+                            value="{{ form_data.get('max_selections', '') or (hw_type.max_selections if hw_type and hw_type.max_selections else '') }}"
+                            placeholder="Leave blank for unlimited">
+                        <div class="pm-form-hint">
+                            How many items can be selected from this type per position.
+                            Leave blank or 0 for unlimited (checkboxes).
+                            Set to 1 for single-select (radio buttons) — e.g., a user
+                            should only need one laptop.
+                        </div>
+                    </div>
+
                     {# -- Description -- #}
                     <div class="mb-4">
                         <label for="description" class="pm-form-label">Description</label>

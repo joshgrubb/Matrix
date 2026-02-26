@@ -494,21 +494,72 @@ def _parse_hardware_form(form) -> list[dict]:
     """
     Parse hardware selections from the form.
 
-    Form fields follow the pattern:
+    Supports two input patterns:
+
+    Multi-select (checkboxes) — unlimited types:
         hw_<hardware_id>_selected = 'on'
         hw_<hardware_id>_quantity = '2'
         hw_<hardware_id>_notes = 'Optional note'
 
-    NOTE: This now parses hardware_id (specific item), not hardware_type_id.
+    Single-select (radio buttons) — max_selections=1 types:
+        hw_type_<type_id>_selected = '<hardware_id>'
+        hw_<hardware_id>_quantity = '1'
+        hw_<hardware_id>_notes = 'Optional note'
+
+    NOTE: This now parses hardware_id (specific item), not
+    hardware_type_id.
     """
     items = []
+    seen_hw_ids = set()  # Guard against duplicates.
+
+    # --- Pattern 1: Checkboxes (multi-select types) ---
     for key in form:
-        if key.endswith("_selected") and key.startswith("hw_"):
+        if (
+            key.endswith("_selected")
+            and key.startswith("hw_")
+            and not key.startswith("hw_type_")
+        ):
             hw_id_str = key.replace("hw_", "").replace("_selected", "")
             try:
                 hardware_id = int(hw_id_str)
             except ValueError:
                 continue
+
+            if hardware_id in seen_hw_ids:
+                continue
+            seen_hw_ids.add(hardware_id)
+
+            quantity = form.get(f"hw_{hardware_id}_quantity", "1")
+            notes = form.get(f"hw_{hardware_id}_notes", "").strip() or None
+
+            try:
+                quantity = max(1, int(quantity))
+            except ValueError:
+                quantity = 1
+
+            items.append(
+                {
+                    "hardware_id": hardware_id,
+                    "quantity": quantity,
+                    "notes": notes,
+                }
+            )
+
+    # --- Pattern 2: Radio buttons (single-select types) ---
+    for key in form:
+        if key.startswith("hw_type_") and key.endswith("_selected"):
+            hw_id_str = form.get(key, "").strip()
+            if not hw_id_str:
+                continue  # No selection made for this type.
+
+            try:
+                hardware_id = int(hw_id_str)
+            except ValueError:
+                continue
+
+            if hardware_id in seen_hw_ids:
+                continue
+            seen_hw_ids.add(hardware_id)
 
             quantity = form.get(f"hw_{hardware_id}_quantity", "1")
             notes = form.get(f"hw_{hardware_id}_notes", "").strip() or None

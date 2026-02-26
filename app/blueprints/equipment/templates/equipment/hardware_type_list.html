@@ -41,6 +41,7 @@
                 <tr>
                     <th>Type Name</th>
                     <th>Description</th>
+                    <th class="text-center">Selection</th>
                     <th class="text-end">Ref. Cost</th>
                     <th class="text-center">Status</th>
                     <th class="text-end">Actions</th>
@@ -51,6 +52,21 @@
                 <tr class="{{ 'pm-row-inactive' if not hw.is_active }}">
                     <td style="font-weight: 500;">{{ hw.type_name }}</td>
                     <td class="pm-text-muted">{{ hw.description or '—' }}</td>
+                    <td class="text-center">
+                        {% if hw.max_selections == 1 %}
+                        <span class="pm-badge pm-badge-neutral">
+                            <i class="bi bi-record-circle me-1"></i>Select 1
+                        </span>
+                        {% elif hw.max_selections and hw.max_selections > 1 %}
+                        <span class="pm-badge pm-badge-neutral">
+                            <i class="bi bi-ui-checks me-1"></i>Max {{ hw.max_selections }}
+                        </span>
+                        {% else %}
+                        <span class="pm-badge pm-badge-success">
+                            <i class="bi bi-ui-checks me-1"></i>Unlimited
+                        </span>
+                        {% endif %}
+                    </td>
                     <td class="text-end pm-cost">${{ "%.2f"|format(hw.estimated_cost) }}</td>
                     <td class="text-center">
                         {% if hw.is_active %}
@@ -82,7 +98,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="5">
+                    <td colspan="6">
                         <div class="pm-empty-state">
                             <i class="bi bi-tags d-block"></i>
                             <p>No hardware types found. Click "Add Hardware Type" to get started.</p>

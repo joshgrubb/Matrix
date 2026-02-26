@@ -55,16 +55,19 @@ def create_hardware_type(
     type_name: str,
     estimated_cost: Decimal,
     description: str | None = None,
+    max_selections: int | None = None,
     user_id: int | None = None,
 ) -> HardwareType:
     """
     Create a new hardware type and record the initial cost history.
 
     Args:
-        type_name:      Display name (e.g., "Laptop").
-        estimated_cost: Reference cost for this hardware category.
-        description:    Optional description.
-        user_id:        ID of the user creating the record.
+        type_name:       Display name (e.g., "Laptop").
+        estimated_cost:  Reference cost for this hardware category.
+        description:     Optional description.
+        max_selections:  Max items selectable within this type group.
+                         None/0 = unlimited, 1 = single-select.
+        user_id:         ID of the user creating the record.
 
     Returns:
         The newly created HardwareType record.
@@ -73,6 +76,7 @@ def create_hardware_type(
         type_name=type_name,
         description=description,
         estimated_cost=estimated_cost,
+        max_selections=max_selections,
     )
     db.session.add(hw_type)
     db.session.flush()
@@ -89,6 +93,7 @@ def create_hardware_type(
             "type_name": type_name,
             "estimated_cost": str(estimated_cost),
             "description": description,
+            "max_selections": max_selections,
         },
     )
     db.session.commit()
@@ -102,6 +107,7 @@ def update_hardware_type(
     type_name: str | None = None,
     estimated_cost: Decimal | None = None,
     description: str | None = None,
+    max_selections: int | None = -1,
     user_id: int | None = None,
 ) -> HardwareType:
     """
@@ -122,6 +128,7 @@ def update_hardware_type(
         "type_name": hw_type.type_name,
         "estimated_cost": str(hw_type.estimated_cost),
         "description": hw_type.description,
+        "max_selections": hw_type.max_selections,
     }
 
     # Track whether the cost changed for history purposes.
@@ -135,6 +142,10 @@ def update_hardware_type(
         hw_type.estimated_cost = estimated_cost
     if description is not None:
         hw_type.description = description
+    # Sentinel -1 means "not provided, don't change".
+    # None or 0 means "unlimited". Any positive int is a real limit.
+    if max_selections != -1:
+        hw_type.max_selections = max_selections
     hw_type.updated_at = datetime.now(timezone.utc)
 
     if cost_changed:
@@ -151,6 +162,7 @@ def update_hardware_type(
             "type_name": hw_type.type_name,
             "estimated_cost": str(hw_type.estimated_cost),
             "description": hw_type.description,
+            "max_selections": hw_type.max_selections,
         },
     )
     db.session.commit()

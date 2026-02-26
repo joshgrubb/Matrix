@@ -151,10 +151,10 @@ document.addEventListener('DOMContentLoaded', function () {
     // warning that this will clear all equipment from the position.
     if (equipmentForm) {
         equipmentForm.addEventListener('submit', function (e) {
-            var checkedBoxes = equipmentForm.querySelectorAll(
-                'input[type="checkbox"]:checked'
+            var checkedItems = equipmentForm.querySelectorAll(
+                '.item-selector:checked'
             );
-            if (checkedBoxes.length === 0) {
+            if (checkedItems.length === 0) {
                 // Determine which step we are on from a data attribute.
                 var step = equipmentForm.getAttribute('data-step') || 'equipment';
                 var confirmed = confirm(
@@ -186,44 +186,168 @@ document.addEventListener('DOMContentLoaded', function () {
          *
          * @param {HTMLInputElement} checkbox - The item checkbox.
          */
-        function syncQuantityDisabled(checkbox) {
-            var row = checkbox.closest('tr');
+        function syncQuantityDisabled(selector) {
+            var row = selector.closest('tr');
             if (!row) { return; }
             var qtyInput = row.querySelector('.item-quantity');
             if (!qtyInput) { return; }
 
-            if (checkbox.checked) {
-                // Enable the quantity input and remove dim styling.
-                qtyInput.disabled = false;
-                qtyInput.style.opacity = '';
+            // For single-select (radio) types, quantity is always
+            // readonly and kept at 1, so just toggle opacity.
+            var isSingleSelect = selector.getAttribute('data-max-selections') === '1';
+
+            if (selector.checked) {
+                // Selected: make quantity visible.
+                if (isSingleSelect) {
+                    qtyInput.value = 1;
+                    qtyInput.style.opacity = '';
+                } else {
+                    qtyInput.disabled = false;
+                    qtyInput.style.opacity = '';
+                }
             } else {
-                // Disable the quantity input and dim it.
-                qtyInput.disabled = true;
-                qtyInput.style.opacity = '0.4';
+                // Deselected: dim the quantity.
+                if (isSingleSelect) {
+                    qtyInput.style.opacity = '0.4';
+                } else {
+                    qtyInput.disabled = true;
+                    qtyInput.style.opacity = '0.4';
+                }
             }
         }
 
-        // Set initial state on page load for all checkboxes.
-        equipmentForm.querySelectorAll('.item-checkbox').forEach(function (cb) {
-            syncQuantityDisabled(cb);
+        // Set initial state on page load for all selectors
+        // (checkboxes and radio buttons).
+        equipmentForm.querySelectorAll('.item-selector').forEach(function (el) {
+            syncQuantityDisabled(el);
         });
 
-        // Listen for checkbox changes to toggle quantity inputs.
+        // Listen for changes to toggle quantity inputs.
         equipmentForm.addEventListener('change', function (e) {
             if (e.target.classList.contains('item-checkbox')) {
+                // Checkbox: just sync the one that changed.
                 syncQuantityDisabled(e.target);
+            } else if (e.target.classList.contains('item-radio')) {
+                // Radio: re-sync ALL radios with the same name,
+                // because the browser deselected the previous one.
+                var groupName = e.target.getAttribute('name');
+                equipmentForm.querySelectorAll(
+                    'input[name="' + groupName + '"]'
+                ).forEach(function (radio) {
+                    syncQuantityDisabled(radio);
+                });
             }
         });
 
         // Before form submission, re-enable all quantity inputs so
-        // their values are included in the POST data.
+        // their values are included in the POST data.  Radio-button
+        // rows use readonly (not disabled) so they're always submitted.
         equipmentForm.addEventListener('submit', function () {
             equipmentForm.querySelectorAll('.item-quantity').forEach(function (input) {
                 input.disabled = false;
             });
         });
     }
+    // ── Max-selections enforcement for types with limits > 1 ────
+    // Caps the TOTAL quantity across all checked items in a type
+    // group.  For example, if monitors have max_selections = 2,
+    // the user can pick 1 monitor at qty 2, or 2 monitors at
+    // qty 1 each, but not 1 monitor at qty 3.
 
+    /**
+     * Enforce total quantity cap on a type group within an
+     * accordion panel.
+     *
+     * Counts total quantity across all checked items in the group,
+     * then adjusts the max attribute on each quantity input and
+     * disables unchecked checkboxes when the cap is fully consumed.
+     *
+     * @param {HTMLElement} trigger - The element that changed
+     *     (checkbox or quantity input).
+     */
+    function enforceMaxSelections(trigger) {
+        // Walk up to the accordion-body to scope by type group.
+        var group = trigger.closest('.accordion-body');
+        if (!group) { return; }
+
+        // Read max_selections from any checkbox in the group.
+        var anyCheckbox = group.querySelector(
+            '.item-checkbox[data-max-selections]'
+        );
+        if (!anyCheckbox) { return; }
+
+        var maxSel = parseInt(
+            anyCheckbox.getAttribute('data-max-selections'), 10
+        );
+        if (!maxSel || maxSel <= 1) { return; }
+
+        // Sum total quantity across all checked items in this group.
+        var totalQty = 0;
+        var checkedRows = [];
+        var uncheckedBoxes = [];
+
+        group.querySelectorAll('.item-checkbox').forEach(function (cb) {
+            var row = cb.closest('tr');
+            if (!row) { return; }
+            var qtyInput = row.querySelector('.item-quantity');
+
+            if (cb.checked && qtyInput) {
+                var qty = parseInt(qtyInput.value, 10) || 1;
+                totalQty += qty;
+                checkedRows.push({ checkbox: cb, qtyInput: qtyInput, qty: qty });
+            } else {
+                uncheckedBoxes.push(cb);
+            }
+        });
+
+        // Remaining capacity available for new selections.
+        var remaining = maxSel - totalQty;
+
+        // Disable unchecked checkboxes if no capacity remains.
+        uncheckedBoxes.forEach(function (cb) {
+            cb.disabled = (remaining < 1);
+        });
+
+        // Cap each checked item's quantity input max so the user
+        // can't exceed the group total.  Each item's max = its
+        // current qty + remaining capacity.
+        checkedRows.forEach(function (entry) {
+            var itemMax = entry.qty + remaining;
+            // Never allow less than 1 or more than the group cap.
+            itemMax = Math.max(1, Math.min(itemMax, maxSel));
+            entry.qtyInput.setAttribute('max', itemMax);
+
+            // If the current value somehow exceeds the new max,
+            // clamp it down.
+            if (entry.qty > itemMax) {
+                entry.qtyInput.value = itemMax;
+            }
+        });
+    }
+
+    // Run on page load for pre-populated selections.
+    equipmentForm.querySelectorAll(
+        '.item-checkbox[data-max-selections]'
+    ).forEach(function (cb) {
+        enforceMaxSelections(cb);
+    });
+
+    // Run on checkbox change.
+    equipmentForm.addEventListener('change', function (e) {
+        if (e.target.classList.contains('item-checkbox') &&
+            e.target.hasAttribute('data-max-selections')) {
+            enforceMaxSelections(e.target);
+        }
+    });
+
+    // Run on quantity input change — this is the key addition
+    // so adjusting qty on one item recalculates the cap for the
+    // whole group.
+    equipmentForm.addEventListener('input', function (e) {
+        if (e.target.classList.contains('item-quantity')) {
+            enforceMaxSelections(e.target);
+        }
+    });
 
     // ── Running cost panel (Tier 1, #3 — MVP) ──────────────────────
     // Client-side only. Reads data-unit-cost from each table row and
@@ -248,12 +372,12 @@ document.addEventListener('DOMContentLoaded', function () {
             var total = 0;
             var itemCount = 0;
 
-            // Find all checked equipment checkboxes in the form.
-            var checkboxes = equipmentForm
-                ? equipmentForm.querySelectorAll('.item-checkbox')
+            // Find all checked equipment selectors (checkboxes + radios).
+            var selectors = equipmentForm
+                ? equipmentForm.querySelectorAll('.item-selector')
                 : [];
 
-            checkboxes.forEach(function (cb) {
+            selectors.forEach(function (cb) {
                 if (!cb.checked) { return; }
 
                 // Walk up to the table row to find cost data.
@@ -288,7 +412,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // Attach listeners to all checkboxes and quantity inputs.
         if (equipmentForm) {
             equipmentForm.addEventListener('change', function (e) {
-                if (e.target.classList.contains('item-checkbox') ||
+                if (e.target.classList.contains('item-selector') ||
+                    e.target.classList.contains('item-checkbox') ||
                     e.target.classList.contains('item-quantity')) {
                     recalculateCost();
                 }

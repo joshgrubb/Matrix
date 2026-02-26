@@ -55,6 +55,19 @@ def hardware_type_create():
             errors.append("Estimated cost must be a valid number.")
             estimated_cost = Decimal("0")
 
+        # Parse max_selections: empty string → None (unlimited).
+        max_sel_str = request.form.get("max_selections", "").strip()
+        max_selections = None
+        if max_sel_str:
+            try:
+                max_selections = int(max_sel_str)
+                if max_selections < 0:
+                    errors.append("Max selections cannot be negative.")
+                elif max_selections == 0:
+                    max_selections = None  # Treat 0 as unlimited.
+            except ValueError:
+                errors.append("Max selections must be a whole number.")
+
         if errors:
             for error in errors:
                 flash(error, "danger")
@@ -70,6 +83,7 @@ def hardware_type_create():
                 type_name=type_name,
                 estimated_cost=estimated_cost,
                 description=description,
+                max_selections=max_selections,
                 user_id=current_user.id,
             )
             flash(f"Hardware type '{type_name}' created.", "success")
@@ -111,12 +125,38 @@ def hardware_type_edit(hw_type_id):
                 form_data=request.form,
             )
 
+        # Parse max_selections: empty string → None (unlimited).
+        max_sel_str = request.form.get("max_selections", "").strip()
+        max_selections = None
+        if max_sel_str:
+            try:
+                max_selections = int(max_sel_str)
+                if max_selections < 0:
+                    flash("Max selections cannot be negative.", "danger")
+                    return render_template(
+                        "equipment/hardware_type_form.html",
+                        mode="edit",
+                        hw_type=hw_type,
+                        form_data=request.form,
+                    )
+                elif max_selections == 0:
+                    max_selections = None  # Treat 0 as unlimited.
+            except ValueError:
+                flash("Max selections must be a whole number.", "danger")
+                return render_template(
+                    "equipment/hardware_type_form.html",
+                    mode="edit",
+                    hw_type=hw_type,
+                    form_data=request.form,
+                )
+
         try:
             equipment_service.update_hardware_type(
                 hw_type_id=hw_type_id,
                 type_name=type_name or None,
                 estimated_cost=estimated_cost,
                 description=description,
+                max_selections=max_selections,
                 user_id=current_user.id,
             )
             flash(f"Hardware type '{hw_type.type_name}' updated.", "success")

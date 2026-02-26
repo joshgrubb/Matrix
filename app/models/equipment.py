@@ -32,6 +32,12 @@ class HardwareType(db.Model):
     # cost for budgeting now lives on individual Hardware items.
     estimated_cost = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    # Controls how many items a user may select within this type
+    # group on the requirements page.
+    # NULL / 0 = unlimited (multi-select checkboxes).
+    # 1        = single-select (radio buttons).
+    # N > 1    = pick up to N (reserved for future use).
+    max_selections = db.Column(db.Integer, nullable=True, default=None)
     created_at = db.Column(
         db.DateTime, nullable=False, server_default=db.text("SYSUTCDATETIME()")
     )

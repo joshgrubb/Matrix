@@ -409,6 +409,58 @@ def remove_software_requirement(
 # =========================================================================
 # Bulk operations (for the guided selection flow)
 # =========================================================================
+def _validate_max_selections(items: list[dict]) -> None:
+    """
+    Validate that submitted hardware selections respect each type's
+    ``max_selections`` constraint.
+
+    Groups items by ``hardware_type_id`` (looked up from the Hardware
+    model) and checks the count against the parent HardwareType's
+    ``max_selections`` value.
+
+    Args:
+        items: List of dicts with at least ``hardware_id``.
+
+    Raises:
+        ValueError: If any hardware type's max_selections is exceeded.
+    """
+    if not items:
+        return  # Nothing to validate.
+
+    from app.models.equipment import Hardware, HardwareType
+    from collections import defaultdict
+
+    # Group selected hardware IDs by their parent type.
+    items_by_type: dict[int, list[dict]] = defaultdict(list)
+    for item in items:
+        hw = db.session.get(Hardware, item["hardware_id"])
+        if hw is None:
+            raise ValueError(f"Hardware item ID {item['hardware_id']} not found.")
+        items_by_type[hw.hardware_type_id].append(item)
+
+    # Check each type's max_selections constraint.
+    for hw_type_id, hw_ids in items_by_type.items():
+        hw_type = db.session.get(HardwareType, hw_type_id)
+        if hw_type is None:
+            continue  # Shouldn't happen, but defensive.
+
+        max_sel = hw_type.max_selections
+        # None or 0 means unlimited — skip validation.
+        if max_sel is not None and max_sel > 0:
+            for hw_type_id, type_items in items_by_type.items():
+                hw_type = db.session.get(HardwareType, hw_type_id)
+            if hw_type is None:
+                continue
+
+            max_sel = hw_type.max_selections
+            if max_sel is not None and max_sel > 0:
+                total_qty = sum(item["quantity"] for item in type_items)
+                if total_qty > max_sel:
+                    raise ValueError(
+                        f"Hardware type '{hw_type.type_name}' allows a "
+                        f"maximum total quantity of {max_sel}, but "
+                        f"{total_qty} were submitted."
+                    )
 
 
 def set_position_hardware(
@@ -428,6 +480,9 @@ def set_position_hardware(
     Returns:
         The new list of PositionHardware records.
     """
+    # Validate max_selections constraints before modifying data.
+    _validate_max_selections(items)
+
     try:
         # Record history for existing requirements being removed.
         existing = get_hardware_requirements(position_id)
