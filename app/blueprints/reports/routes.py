@@ -9,6 +9,7 @@ from flask import make_response, render_template, request
 from flask_login import current_user, login_required
 
 from app.blueprints.reports import bp
+from app.decorators import role_required
 from app.services import cost_service, export_service, organization_service
 
 
@@ -85,6 +86,7 @@ def equipment_report():
 
 @bp.route("/export/department-costs/<fmt>")
 @login_required
+@role_required("admin", "it_staff", "budget_executive")
 def export_department_costs(fmt):
     """
     Export department cost summaries as CSV or Excel.
@@ -116,6 +118,7 @@ def export_department_costs(fmt):
 
 @bp.route("/export/position-costs/<fmt>")
 @login_required
+@role_required("admin", "it_staff", "budget_executive")
 def export_position_costs(fmt):
     """
     Export position-level cost details as CSV or Excel.

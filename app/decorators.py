@@ -18,10 +18,13 @@ routes.  They are used in combination with Flask-Login's
         ...
 """
 
+import logging
 from functools import wraps
 
-from flask import abort, flash
+from flask import abort, flash, request
 from flask_login import current_user
+
+logger = logging.getLogger(__name__)
 
 
 def role_required(*role_names: str):
@@ -37,6 +40,7 @@ def role_required(*role_names: str):
         def protected_view():
             ...
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -44,10 +48,22 @@ def role_required(*role_names: str):
             if not current_user.is_authenticated:
                 abort(401)
             if current_user.role.role_name not in role_names:
+                logger.warning(
+                    "Access denied: user %d (%s) with role '%s' "
+                    "attempted %s %s (requires one of: %s)",
+                    current_user.id,
+                    current_user.email,
+                    current_user.role.role_name,
+                    request.method,
+                    request.path,
+                    ", ".join(role_names),
+                )
                 flash("You do not have permission to access this page.", "danger")
                 abort(403)
             return func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -65,16 +81,27 @@ def permission_required(permission_name: str):
         def create_equipment():
             ...
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             if not current_user.is_authenticated:
                 abort(401)
             if not current_user.has_permission(permission_name):
+                logger.warning(
+                    "Access denied: user %d (%s) lacks permission '%s' " "for %s %s",
+                    current_user.id,
+                    current_user.email,
+                    permission_name,
+                    request.method,
+                    request.path,
+                )
                 flash("You do not have permission to perform this action.", "danger")
                 abort(403)
             return func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -96,11 +123,14 @@ def scope_check(entity_type: str, entity_id_kwarg: str = "id"):
         def view_department(id):
             ...
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             # Import here to avoid circular imports.
-            from app.services import organization_service  # pylint: disable=import-outside-toplevel
+            from app.services import (
+                organization_service,
+            )  # pylint: disable=import-outside-toplevel
 
             if not current_user.is_authenticated:
                 abort(401)
@@ -132,5 +162,7 @@ def scope_check(entity_type: str, entity_id_kwarg: str = "id"):
                 abort(403)
 
             return func(*args, **kwargs)
+
         return wrapper
+
     return decorator

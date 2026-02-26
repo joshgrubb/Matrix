@@ -88,6 +88,11 @@ def run_full_sync(user_id: int | None = None) -> HRSyncLog:
             },
         )
 
+        # Single atomic commit: all entity creates/updates/deactivations,
+        # the sync log completion, and the audit entry.  If anything
+        # above raised, the except block's rollback() undoes everything.
+        db.session.commit()
+
         logger.info(
             "Full HR sync completed: %d processed, %d created, "
             "%d updated, %d deactivated, %d errors",
@@ -161,15 +166,25 @@ def _sync_departments(
             stats["errors"] += 1
 
     # Deactivate departments no longer present in the API response.
-    active_local = Department.query.filter_by(is_active=True).all()
-    for dept in active_local:
-        if dept.department_code not in api_codes:
-            dept.is_active = False
-            dept.updated_at = datetime.now(timezone.utc)
-            stats["deactivated"] += 1
-            logger.debug("Deactivated department: %s", dept.department_code)
+    # Guard: only run deactivation if the API actually returned data.
+    # An empty response likely indicates an API outage, not that every
+    # department was deleted.  Mirrors the existing _sync_employees guard.
+    if api_codes:
+        active_local = Department.query.filter_by(is_active=True).all()
+        for dept in active_local:
+            if dept.department_code not in api_codes:
+                dept.is_active = False
+                dept.updated_at = datetime.now(timezone.utc)
+                stats["deactivated"] += 1
+                logger.debug("Deactivated department: %s", dept.department_code)
+    else:
+        logger.warning(
+            "No department data received from NeoGov — "
+            "department deactivation skipped."
+        )
 
-    db.session.commit()
+    # No commit here — run_full_sync() commits atomically after all
+    # entity syncs succeed.
     return stats
 
 
@@ -246,15 +261,21 @@ def _sync_divisions(
             stats["errors"] += 1
 
     # Deactivate divisions no longer present in the API response.
-    active_local = Division.query.filter_by(is_active=True).all()
-    for div in active_local:
-        if div.division_code not in api_codes:
-            div.is_active = False
-            div.updated_at = datetime.now(timezone.utc)
-            stats["deactivated"] += 1
-            logger.debug("Deactivated division: %s", div.division_code)
+    # Guard: skip deactivation if API returned no data (likely outage).
+    if api_codes:
+        active_local = Division.query.filter_by(is_active=True).all()
+        for div in active_local:
+            if div.division_code not in api_codes:
+                div.is_active = False
+                div.updated_at = datetime.now(timezone.utc)
+                stats["deactivated"] += 1
+                logger.debug("Deactivated division: %s", div.division_code)
+    else:
+        logger.warning(
+            "No division data received from NeoGov — " "division deactivation skipped."
+        )
 
-    db.session.commit()
+    # No commit here — run_full_sync() commits atomically.
     return stats
 
 
@@ -337,15 +358,21 @@ def _sync_positions(
             stats["errors"] += 1
 
     # Deactivate positions no longer present in the API response.
-    active_local = Position.query.filter_by(is_active=True).all()
-    for pos in active_local:
-        if pos.position_code not in api_codes:
-            pos.is_active = False
-            pos.updated_at = datetime.now(timezone.utc)
-            stats["deactivated"] += 1
-            logger.debug("Deactivated position: %s", pos.position_code)
+    # Guard: skip deactivation if API returned no data (likely outage).
+    if api_codes:
+        active_local = Position.query.filter_by(is_active=True).all()
+        for pos in active_local:
+            if pos.position_code not in api_codes:
+                pos.is_active = False
+                pos.updated_at = datetime.now(timezone.utc)
+                stats["deactivated"] += 1
+                logger.debug("Deactivated position: %s", pos.position_code)
+    else:
+        logger.warning(
+            "No position data received from NeoGov — " "position deactivation skipped."
+        )
 
-    db.session.commit()
+    # No commit here — run_full_sync() commits atomically.
     return stats
 
 
@@ -457,7 +484,7 @@ def _sync_employees(
                 emp.updated_at = datetime.now(timezone.utc)
                 stats["deactivated"] += 1
 
-    db.session.commit()
+    # No commit here — run_full_sync() commits atomically.
     return stats
 
 
@@ -475,6 +502,10 @@ def _create_sync_log(sync_type: str, user_id: int | None) -> HRSyncLog:
         started_at=datetime.now(timezone.utc),
     )
     db.session.add(sync_log)
+    # This commit is intentional.  The sync_log must be persisted
+    # before the try block so that if run_full_sync's except block
+    # calls rollback(), the "started" row survives and _fail_sync_log
+    # can update it to "failed".
     db.session.commit()
     return sync_log
 
@@ -495,7 +526,8 @@ def _complete_sync_log(sync_log: HRSyncLog, stats: dict) -> None:
     sync_log.records_updated = stats["updated"]
     sync_log.records_deactivated = stats["deactivated"]
     sync_log.records_errors = stats["errors"]
-    db.session.commit()
+    # Flush only — the caller (run_full_sync) issues the final commit.
+    db.session.flush()
 
 
 def _fail_sync_log(sync_log: HRSyncLog, error_message: str) -> None:
@@ -504,6 +536,11 @@ def _fail_sync_log(sync_log: HRSyncLog, error_message: str) -> None:
     # Truncate for NVARCHAR(MAX) safety.
     sync_log.error_message = error_message[:4000]
     sync_log.completed_at = datetime.now(timezone.utc)
+    # This commit is intentional.  _fail_sync_log runs AFTER
+    # db.session.rollback() in the except block of run_full_sync.
+    # The sync_log row was committed by _create_sync_log before the
+    # try block, so it survived the rollback.  We must commit here
+    # to persist the "failed" status update.
     db.session.commit()
 
 

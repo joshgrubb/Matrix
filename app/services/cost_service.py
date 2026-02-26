@@ -16,7 +16,7 @@ Cost calculation rules:
 
 import logging
 from dataclasses import dataclass, field
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from sqlalchemy import func
 
@@ -411,8 +411,13 @@ def _calculate_tenant_share_for_position(
     if covered_headcount == 0:
         return ZERO
 
-    # Per-person share of the tenant cost.
-    return total_cost / Decimal(covered_headcount)
+    # Per-person share of the tenant cost, rounded to cents.
+    # Without explicit rounding, repeating decimals (e.g., $10000/3)
+    # propagate through aggregations and cause penny discrepancies
+    # in department/org totals.
+    return (total_cost / Decimal(covered_headcount)).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
 
 
 def _get_covered_headcount(software: Software) -> int:

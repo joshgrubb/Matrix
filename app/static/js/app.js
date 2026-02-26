@@ -117,6 +117,29 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
+    // ── Double-submission prevention ────────────────────────────────
+    // Disable all submit buttons after the first click to prevent
+    // duplicate form submissions.  The button is re-enabled after
+    // 5 seconds as a fallback in case the submission fails and the
+    // user needs to retry.
+    document.querySelectorAll('form').forEach(function (form) {
+        form.addEventListener('submit', function () {
+            var buttons = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+            buttons.forEach(function (btn) {
+                // Skip if the submission was cancelled by a confirm dialog.
+                setTimeout(function () {
+                    btn.disabled = true;
+                    btn.setAttribute('aria-busy', 'true');
+                }, 0);
+
+                // Re-enable after 5 seconds as a safety fallback.
+                setTimeout(function () {
+                    btn.disabled = false;
+                    btn.removeAttribute('aria-busy');
+                }, 5000);
+            });
+        });
+    });
 
     // ── Reference to the equipment form (used by multiple features) ─
     var equipmentForm = document.getElementById('equipment-selection-form');

@@ -12,7 +12,8 @@
         <form method="POST" action="{{ url_for('admin.hr_sync_run') }}" class="d-inline">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="pm-btn pm-btn-primary pm-btn-sm"
-                data-confirm="Run a full HR sync now? This will update departments, divisions, and positions from NeoGov.">
+                data-confirm="Run a full HR sync now? This will update departments, divisions, and positions from NeoGov."
+                onclick="this.disabled=true; this.innerHTML='<i class=\'bi bi-hourglass-split\'></i> Syncing…'; this.closest('form').submit();">
                 <i class="bi bi-play-fill"></i>
                 Run Full Sync
             </button>
