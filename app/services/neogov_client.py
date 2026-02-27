@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 # Maximum records per page supported by the NeoGov API.
 _MAX_PAGE_SIZE = 50
-
+_ACTIVE_EMPLOYMENT_STATUSES: set[str] = {"ACTIVE", "MAT LEAVE", "LEAVE"}
 
 class NeoGovApiClient:
     """
@@ -656,8 +656,15 @@ class NeoGovApiClient:
                 "lastName": "Doe",
                 "workEmail": "jdoe@example.gov",
                 "positionCode": "23001",
+                "employeeStatus": "Active",
                 ...
             }
+
+        Active/inactive determination is based on the
+        ``employeeStatus`` field.  Values in
+        ``_ACTIVE_EMPLOYMENT_STATUSES`` are treated as active;
+        all others (e.g., "Terminated", "Retired", "Separated")
+        are treated as inactive.
 
         Args:
             raw_employees: Raw dicts from individual employee fetches.
@@ -665,11 +672,21 @@ class NeoGovApiClient:
         Returns:
             List of normalized employee dicts with keys:
             ``employee_id``, ``first_name``, ``last_name``,
-            ``email``, ``position_code``.
+            ``email``, ``position_code``, ``is_active``.
         """
         normalized: list[dict[str, Any]] = []
 
         for emp in raw_employees:
+            # -- Discovery logging -------------------------------------
+            # On the first employee, log all available field names so
+            # an admin can verify the correct status field.  This only
+            # fires at DEBUG level and only for the first record.
+            if not normalized and emp:
+                logger.debug(
+                    "Raw NeoGov employee fields (first record): %s",
+                    sorted(emp.keys()),
+                )
+
             # -- Employee ID -------------------------------------------
             # employeeNumber is the canonical identifier.
             employee_id = emp.get("employeeNumber", "")
@@ -680,10 +697,30 @@ class NeoGovApiClient:
 
             # -- Email -------------------------------------------------
             # Prefer work email; fall back to personal email.
-            email = emp.get("workEmail") or emp.get("personalEmail")
+            email = emp.get("workEmail")
 
             # -- Position code -----------------------------------------
             position_code = emp.get("positionCode", "")
+
+            # -- Employment status -------------------------------------
+            # NeoGov returns a string like "Active", "Terminated",
+            # "Retired", "Leave", "Separated", etc.
+            #
+            # IMPORTANT: If the field name below does not match your
+            # NeoGov instance, run the sync with LOG_LEVEL=DEBUG and
+            # look for the "Raw NeoGov employee fields" log entry to
+            # discover the correct field name.
+            employment_status = emp.get("employeeStatus", "")
+            is_active = employment_status in _ACTIVE_EMPLOYMENT_STATUSES
+
+            if not is_active:
+                logger.debug(
+                    "Employee %s (%s %s) has status '%s' — " "will be marked inactive.",
+                    employee_id,
+                    first_name,
+                    last_name,
+                    employment_status,
+                )
 
             # Skip employees missing critical identifiers.
             if not employee_id:
@@ -697,6 +734,7 @@ class NeoGovApiClient:
                     "last_name": last_name,
                     "email": email,
                     "position_code": position_code,
+                    "is_active": is_active,
                 }
             )
 

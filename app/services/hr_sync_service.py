@@ -410,7 +410,14 @@ def _sync_employees(
     user_id: int | None,
 ) -> dict:
     """
-    Sync employees: create new, update changed, deactivate removed.
+    Sync employees: create new, update changed, deactivate terminated.
+
+    Active/inactive status is determined by the ``is_active`` flag
+    in each employee dict, which ``NeoGovApiClient._transform_employees``
+    derives from the NeoGov ``EmploymentStatus`` field.  The
+    ``/persons`` endpoint returns **all** employees regardless of
+    status, so presence-based deactivation does not work — we must
+    rely on the explicit status field.
 
     Employee data is fetched from the ``/persons`` list endpoint
     and then ``/employees/{code}`` detail endpoint concurrently
@@ -420,7 +427,7 @@ def _sync_employees(
         api_employees: Normalized employee dicts from the API client.
                        Each dict has keys: ``employee_id``,
                        ``first_name``, ``last_name``, ``email``,
-                       ``position_code``.
+                       ``position_code``, ``is_active``.
         user_id:       ID of the user who triggered the sync.
 
     Returns:
@@ -437,24 +444,32 @@ def _sync_employees(
         )
         return stats
 
-    api_ids: set[str] = set()
-
     for emp_data in api_employees:
         stats["processed"] += 1
         # The NeoGov client normalizes EmployeeNumber as "employee_id".
         # We store it in the employee_code column (consistent with
         # department_code, division_code, position_code).
         emp_code = emp_data.get("employee_id", "")
-        api_ids.add(emp_code)
+        api_is_active = emp_data.get("is_active", True)
 
         try:
             # Resolve the position by its NeoGov code.
+            # Inactive employees may have a stale or empty position
+            # code.  We still need to resolve it if present, but a
+            # missing position is only an error for active employees.
             pos_code = emp_data.get("position_code", "")
-            position = Position.query.filter_by(position_code=pos_code).first()
+            position = (
+                Position.query.filter_by(
+                    position_code=pos_code,
+                ).first()
+                if pos_code
+                else None
+            )
 
-            if position is None:
+            if position is None and api_is_active:
                 logger.warning(
-                    "Employee %s: position %s not found — skipping",
+                    "Employee %s: position '%s' not found — "
+                    "skipping active employee.",
                     emp_code,
                     pos_code,
                 )
@@ -466,7 +481,17 @@ def _sync_employees(
             ).first()
 
             if existing is None:
-                # Create a new employee record.
+                # Only create records for active employees.
+                # Terminated employees with no prior local record are
+                # skipped — no reason to create a record just to
+                # immediately deactivate it.
+                if not api_is_active:
+                    logger.debug(
+                        "Skipping inactive employee %s — no local " "record exists.",
+                        emp_code,
+                    )
+                    continue
+
                 emp = Employee(
                     employee_code=emp_code,
                     first_name=emp_data.get("first_name", ""),
@@ -477,13 +502,32 @@ def _sync_employees(
                 db.session.add(emp)
                 stats["created"] += 1
             else:
-                # Update if any field changed.
+                # -- Handle status transitions -------------------------
+                # Case A: API says inactive, local says active
+                #         → deactivate the local record.
+                if not api_is_active and existing.is_active:
+                    existing.is_active = False
+                    existing.updated_at = datetime.now(timezone.utc)
+                    stats["deactivated"] += 1
+                    logger.info(
+                        "Deactivated employee %s (%s %s) — "
+                        "NeoGov status is no longer active.",
+                        emp_code,
+                        existing.first_name,
+                        existing.last_name,
+                    )
+                    # Skip further field updates for terminated
+                    # employees — their NeoGov data may be stale.
+                    continue
+
+                # Case B: API says active — update fields if changed,
+                #         and reactivate if previously deactivated.
                 changed = (
                     existing.first_name
                     != emp_data.get("first_name", existing.first_name)
                     or existing.last_name
                     != emp_data.get("last_name", existing.last_name)
-                    or existing.position_id != position.id
+                    or (position is not None and existing.position_id != position.id)
                     or not existing.is_active
                 )
                 if changed:
@@ -496,7 +540,8 @@ def _sync_employees(
                         existing.last_name,
                     )
                     existing.email = emp_data.get("email", existing.email)
-                    existing.position_id = position.id
+                    if position is not None:
+                        existing.position_id = position.id
                     existing.is_active = True
                     existing.updated_at = datetime.now(timezone.utc)
                     stats["updated"] += 1
@@ -504,17 +549,6 @@ def _sync_employees(
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logger.error("Error syncing employee %s: %s", emp_code, exc)
             stats["errors"] += 1
-
-    # Deactivate employees no longer present in the API response.
-    # Only run if we actually received employee data (avoid mass-deactivation
-    # when the employees list is intentionally empty).
-    if api_ids:
-        active_local = Employee.query.filter_by(is_active=True).all()
-        for emp in active_local:
-            if emp.employee_code not in api_ids:
-                emp.is_active = False
-                emp.updated_at = datetime.now(timezone.utc)
-                stats["deactivated"] += 1
 
     # No commit here — run_full_sync() commits atomically.
     return stats
