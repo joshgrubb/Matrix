@@ -650,12 +650,12 @@ class NeoGovApiClient:
         PascalCase structure::
 
             {
-                "EmployeeNumber": "12345",
-                "FirstName": "Jane",
+                "employeeNumber": "12345",
+                "firstName": "Jane",
                 "MiddleName": "M",
-                "LastName": "Doe",
-                "WorkEmail": "jdoe@example.gov",
-                "PositionCode": "23001",
+                "lastName": "Doe",
+                "workEmail": "jdoe@example.gov",
+                "positionCode": "23001",
                 ...
             }
 
@@ -671,23 +671,23 @@ class NeoGovApiClient:
 
         for emp in raw_employees:
             # -- Employee ID -------------------------------------------
-            # EmployeeNumber is the canonical identifier.
-            employee_id = emp.get("EmployeeNumber", "")
+            # employeeNumber is the canonical identifier.
+            employee_id = emp.get("employeeNumber", "")
 
             # -- Name fields -------------------------------------------
-            first_name = emp.get("FirstName", "")
-            last_name = emp.get("LastName", "")
+            first_name = emp.get("firstName", "")
+            last_name = emp.get("lastName", "")
 
             # -- Email -------------------------------------------------
             # Prefer work email; fall back to personal email.
-            email = emp.get("WorkEmail") or emp.get("PersonalEmail")
+            email = emp.get("workEmail") or emp.get("personalEmail")
 
             # -- Position code -----------------------------------------
-            position_code = emp.get("PositionCode", "")
+            position_code = emp.get("positionCode", "")
 
             # Skip employees missing critical identifiers.
             if not employee_id:
-                logger.warning("Skipping employee with missing EmployeeNumber")
+                logger.warning("Skipping employee with missing employeeNumber")
                 continue
 
             normalized.append(

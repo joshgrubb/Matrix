@@ -6,6 +6,13 @@ HR system into the local database.  New records are created, changed
 records are updated, and records no longer present in NeoGov are
 soft-deleted (``is_active=False``) to preserve audit history.
 
+After the org sync completes, the service auto-provisions ``auth.user``
+records for active employees who do not yet have application accounts.
+New users receive the ``read_only`` role and a division-level scope
+derived from their position (least privilege).  Employees deactivated
+by NeoGov have their linked user accounts deactivated in the same
+transaction.
+
 The sync is triggered manually by IT staff from the admin panel or
 via the ``flask hr-sync`` CLI command.
 
@@ -22,6 +29,7 @@ from flask import current_app
 from app.extensions import db
 from app.models.audit import HRSyncLog
 from app.models.organization import Department, Division, Employee, Position
+from app.models.user import Role, User, UserScope
 from app.services import audit_service
 from app.services.neogov_client import NeoGovApiClient
 
@@ -38,7 +46,10 @@ def run_full_sync(user_id: int | None = None) -> HRSyncLog:
     Run a full sync of all organizational data from NeoGov.
 
     Syncs in dependency order: departments → divisions → positions
-    → employees.  Each entity type is diffed against local data.
+    → employees → user provisioning.  Each entity type is diffed
+    against local data.  User provisioning creates ``auth.user``
+    records for new employees and deactivates accounts for removed
+    employees.
 
     Args:
         user_id: ID of the user who triggered the sync.
@@ -67,8 +78,16 @@ def run_full_sync(user_id: int | None = None) -> HRSyncLog:
         db.session.flush()
 
         emp_stats = _sync_employees(api_data.get("employees", []), user_id)
+        # Flush so new employees have IDs for user FK lookups.
+        db.session.flush()
 
-        # Aggregate statistics from all entity syncs.
+        # Auto-provision auth.user accounts for employees.
+        user_stats = _provision_users(user_id)
+
+        # Aggregate statistics from the four org entity syncs.
+        # User provisioning stats are tracked separately to avoid
+        # inflating the HRSyncLog record counts (which represent
+        # org entities, not auth records).
         total_stats = _merge_stats([dept_stats, div_stats, pos_stats, emp_stats])
         _complete_sync_log(sync_log, total_stats)
 
@@ -85,22 +104,32 @@ def run_full_sync(user_id: int | None = None) -> HRSyncLog:
                 "updated": total_stats["updated"],
                 "deactivated": total_stats["deactivated"],
                 "errors": total_stats["errors"],
+                "users_provisioned": user_stats["created"],
+                "users_linked": user_stats["linked"],
+                "users_deactivated": user_stats["deactivated"],
+                "users_skipped": user_stats["skipped"],
+                "users_errors": user_stats["errors"],
             },
         )
 
         # Single atomic commit: all entity creates/updates/deactivations,
-        # the sync log completion, and the audit entry.  If anything
-        # above raised, the except block's rollback() undoes everything.
+        # user provisioning, the sync log completion, and the audit entry.
+        # If anything above raised, the except block's rollback() undoes
+        # everything.
         db.session.commit()
 
         logger.info(
             "Full HR sync completed: %d processed, %d created, "
-            "%d updated, %d deactivated, %d errors",
+            "%d updated, %d deactivated, %d errors | "
+            "Users: %d provisioned, %d linked, %d deactivated",
             total_stats["processed"],
             total_stats["created"],
             total_stats["updated"],
             total_stats["deactivated"],
             total_stats["errors"],
+            user_stats["created"],
+            user_stats["linked"],
+            user_stats["deactivated"],
         )
 
     except Exception as exc:  # pylint: disable=broad-exception-caught
@@ -412,8 +441,11 @@ def _sync_employees(
 
     for emp_data in api_employees:
         stats["processed"] += 1
-        neogov_id = emp_data.get("employee_id", "")
-        api_ids.add(neogov_id)
+        # The NeoGov client normalizes EmployeeNumber as "employee_id".
+        # We store it in the employee_code column (consistent with
+        # department_code, division_code, position_code).
+        emp_code = emp_data.get("employee_id", "")
+        api_ids.add(emp_code)
 
         try:
             # Resolve the position by its NeoGov code.
@@ -423,20 +455,20 @@ def _sync_employees(
             if position is None:
                 logger.warning(
                     "Employee %s: position %s not found — skipping",
-                    neogov_id,
+                    emp_code,
                     pos_code,
                 )
                 stats["errors"] += 1
                 continue
 
             existing = Employee.query.filter_by(
-                neogov_employee_id=neogov_id,
+                employee_code=emp_code,
             ).first()
 
             if existing is None:
                 # Create a new employee record.
                 emp = Employee(
-                    neogov_employee_id=neogov_id,
+                    employee_code=emp_code,
                     first_name=emp_data.get("first_name", ""),
                     last_name=emp_data.get("last_name", ""),
                     email=emp_data.get("email"),
@@ -470,7 +502,7 @@ def _sync_employees(
                     stats["updated"] += 1
 
         except Exception as exc:  # pylint: disable=broad-exception-caught
-            logger.error("Error syncing employee %s: %s", neogov_id, exc)
+            logger.error("Error syncing employee %s: %s", emp_code, exc)
             stats["errors"] += 1
 
     # Deactivate employees no longer present in the API response.
@@ -479,10 +511,265 @@ def _sync_employees(
     if api_ids:
         active_local = Employee.query.filter_by(is_active=True).all()
         for emp in active_local:
-            if emp.neogov_employee_id not in api_ids:
+            if emp.employee_code not in api_ids:
                 emp.is_active = False
                 emp.updated_at = datetime.now(timezone.utc)
                 stats["deactivated"] += 1
+
+    # No commit here — run_full_sync() commits atomically.
+    return stats
+
+
+# =========================================================================
+# User provisioning (runs after employee sync)
+# =========================================================================
+
+
+def _provision_users(user_id: int | None) -> dict:
+    """
+    Auto-provision auth.user accounts from synced employee data.
+
+    Runs as the final step of ``run_full_sync()`` inside the same
+    database transaction.  Handles three cases:
+
+    1. **New employee with email, no auth.user** — Creates a new
+       ``auth.user`` with the ``read_only`` role and a division-level
+       scope derived from the employee's position.
+    2. **Employee email matches existing auth.user** — Links the
+       employee to the pre-provisioned user via ``employee_id`` FK.
+       Does not change the user's role or scope (admin may have
+       customized them).
+    3. **Deactivated employee with linked auth.user** — Deactivates
+       the corresponding user account.
+
+    The function is idempotent: employees already linked to a user
+    (via the ``employee_id`` FK) are skipped entirely.
+
+    Args:
+        user_id: ID of the admin/user who triggered the sync.
+
+    Returns:
+        Dict with keys: created, linked, deactivated, skipped, errors.
+    """
+    stats = {
+        "created": 0,
+        "linked": 0,
+        "deactivated": 0,
+        "skipped": 0,
+        "errors": 0,
+    }
+
+    # -- Resolve the default role -----------------------------------------
+    read_only_role = Role.query.filter_by(role_name="read_only").first()
+    if read_only_role is None:
+        logger.error(
+            "Cannot provision users: 'read_only' role not found. "
+            "Ensure seed data has been loaded."
+        )
+        return stats
+
+    # -- Build lookup sets for efficiency ---------------------------------
+    # Set of employee IDs that already have a linked auth.user.
+    linked_employee_ids: set[int] = {
+        eid
+        for (eid,) in db.session.query(User.employee_id)
+        .filter(User.employee_id.isnot(None))
+        .all()
+    }
+
+    # Map of lowercase email → User for matching pre-provisioned users.
+    existing_users_by_email: dict[str, User] = {
+        u.email.lower(): u
+        for u in User.query.filter(
+            User.is_active == True
+        ).all()  # pylint: disable=singleton-comparison
+    }
+
+    # -- Provision active employees ---------------------------------------
+    active_employees = Employee.query.filter_by(is_active=True).all()
+
+    for emp in active_employees:
+        try:
+            # Guard: already linked via FK — skip entirely.
+            if emp.id in linked_employee_ids:
+                stats["skipped"] += 1
+                continue
+
+            # Guard: no email — cannot create a login.
+            if not emp.email:
+                logger.debug(
+                    "Employee %s (%s %s) has no email — " "skipping user provisioning.",
+                    emp.employee_code,
+                    emp.first_name,
+                    emp.last_name,
+                )
+                stats["skipped"] += 1
+                continue
+
+            # Guard: position/division chain must be intact.
+            if emp.position is None or emp.position.division is None:
+                logger.warning(
+                    "Employee %s: missing position/division chain "
+                    "— skipping user provisioning.",
+                    emp.employee_code,
+                )
+                stats["skipped"] += 1
+                continue
+
+            email_lower = emp.email.strip().lower()
+
+            # Case 2: Email matches an existing pre-provisioned user.
+            # Link them via employee_id but do NOT alter their role or
+            # scope — an admin may have already customized them.
+            if email_lower in existing_users_by_email:
+                existing_user = existing_users_by_email[email_lower]
+
+                # Only link if they don't already have an employee_id.
+                if existing_user.employee_id is None:
+                    existing_user.employee_id = emp.id
+                    linked_employee_ids.add(emp.id)
+
+                    # If the user has no scopes at all, give them a
+                    # default division scope so they aren't locked out.
+                    if not existing_user.scopes:
+                        scope = UserScope(
+                            user_id=existing_user.id,
+                            scope_type="division",
+                            division_id=emp.position.division_id,
+                        )
+                        db.session.add(scope)
+
+                    logger.info(
+                        "Linked existing user %s to employee %s.",
+                        existing_user.email,
+                        emp.employee_code,
+                    )
+                    stats["linked"] += 1
+                else:
+                    # User already linked to a different employee.
+                    stats["skipped"] += 1
+                continue
+
+            # Case 1: No auth.user exists — create one.
+            new_user = User(
+                email=emp.email.strip(),
+                first_name=emp.first_name,
+                last_name=emp.last_name,
+                role_id=read_only_role.id,
+                employee_id=emp.id,
+                provisioned_by=user_id,
+                provisioned_at=datetime.now(timezone.utc),
+            )
+            db.session.add(new_user)
+            # Flush to get the auto-generated user ID for the scope
+            # and audit log entries.
+            db.session.flush()
+
+            # Assign a division-level scope from the employee's
+            # position — this is the narrowest meaningful scope
+            # (least privilege principle).
+            division_id = emp.position.division_id
+            scope = UserScope(
+                user_id=new_user.id,
+                scope_type="division",
+                division_id=division_id,
+            )
+            db.session.add(scope)
+
+            # Record an audit entry for the new user.
+            audit_service.log_change(
+                user_id=user_id,
+                action_type="CREATE",
+                entity_type="auth.user",
+                entity_id=new_user.id,
+                new_value={
+                    "email": new_user.email,
+                    "first_name": new_user.first_name,
+                    "last_name": new_user.last_name,
+                    "role": "read_only",
+                    "employee_code": emp.employee_code,
+                    "scope": f"division:{division_id}",
+                    "provision_method": "hr_sync",
+                },
+            )
+
+            # Track in local sets so subsequent employees with the
+            # same email (data quality issue) are caught.
+            linked_employee_ids.add(emp.id)
+            existing_users_by_email[email_lower] = new_user
+
+            logger.info(
+                "Provisioned user %s (employee %s) → "
+                "role=read_only, scope=division:%d",
+                new_user.email,
+                emp.employee_code,
+                division_id,
+            )
+            stats["created"] += 1
+
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.error(
+                "Error provisioning user for employee %s: %s",
+                emp.employee_code,
+                exc,
+            )
+            stats["errors"] += 1
+
+    # -- Deactivate users for removed employees ---------------------------
+    # Find inactive employees that still have an active linked user.
+    inactive_with_users = (
+        Employee.query.filter_by(is_active=False)
+        .join(User, User.employee_id == Employee.id)
+        .filter(User.is_active == True)  # pylint: disable=singleton-comparison
+        .all()
+    )
+
+    for emp in inactive_with_users:
+        try:
+            linked_user = User.query.filter_by(
+                employee_id=emp.id, is_active=True
+            ).first()
+            if linked_user is not None:
+                linked_user.is_active = False
+                linked_user.updated_at = datetime.now(timezone.utc)
+
+                audit_service.log_change(
+                    user_id=user_id,
+                    action_type="UPDATE",
+                    entity_type="auth.user",
+                    entity_id=linked_user.id,
+                    previous_value={"is_active": True},
+                    new_value={
+                        "is_active": False,
+                        "reason": "employee_deactivated_by_hr_sync",
+                        "employee_code": emp.employee_code,
+                    },
+                )
+
+                logger.info(
+                    "Deactivated user %s — employee %s no longer " "active in NeoGov.",
+                    linked_user.email,
+                    emp.employee_code,
+                )
+                stats["deactivated"] += 1
+
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.error(
+                "Error deactivating user for employee %s: %s",
+                emp.employee_code,
+                exc,
+            )
+            stats["errors"] += 1
+
+    logger.info(
+        "User provisioning complete: %d created, %d linked, "
+        "%d deactivated, %d skipped, %d errors.",
+        stats["created"],
+        stats["linked"],
+        stats["deactivated"],
+        stats["skipped"],
+        stats["errors"],
+    )
 
     # No commit here — run_full_sync() commits atomically.
     return stats

@@ -126,6 +126,13 @@ class User(UserMixin, db.Model):
     last_name = db.Column(db.String(100), nullable=False)
     role_id = db.Column(db.Integer, db.ForeignKey("auth.role.id"), nullable=False)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    employee_id = db.Column(
+        db.Integer,
+        db.ForeignKey("org.employee.id"),
+        nullable=True,
+        unique=True,
+        index=True,
+    )
     provisioned_by = db.Column(db.Integer, db.ForeignKey("auth.user.id"), nullable=True)
     provisioned_at = db.Column(db.DateTime, nullable=True)
     first_login_at = db.Column(db.DateTime, nullable=True)
@@ -142,6 +149,11 @@ class User(UserMixin, db.Model):
     scopes = db.relationship("UserScope", back_populates="user", lazy="joined")
     provisioner = db.relationship(
         "User", remote_side=[id], foreign_keys=[provisioned_by]
+    )
+    employee = db.relationship(
+        "Employee",
+        backref=db.backref("user_account", uselist=False),
+        uselist=False,
     )
 
     # ---- Convenience properties ------------------------------------------
