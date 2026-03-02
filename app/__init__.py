@@ -15,6 +15,7 @@ from flask import Flask, render_template
 
 from .config import config_by_name
 from .extensions import csrf, db, login_manager, migrate
+from .logging_config import configure_logging
 
 
 def create_app(config_name: str | None = None) -> Flask:
@@ -65,7 +66,7 @@ def create_app(config_name: str | None = None) -> Flask:
     _register_cli_commands(app)
 
     # -- Configure logging -------------------------------------------------
-    _configure_logging(app)
+    configure_logging(app)
 
     return app
 
@@ -195,19 +196,3 @@ def _register_cli_commands(app: Flask) -> None:
     register_read_only_seeds(app)
     register_budget_seeds(app)
     register_scope_seeds(app)
-
-
-def _configure_logging(app: Flask) -> None:
-    """
-    Set up structured JSON logging for the application.
-
-    In production, logs are written as JSON for ingestion by log
-    aggregation tools. In development, the default formatter is
-    used for readability.
-    """
-    log_level = app.config.get("LOG_LEVEL", "INFO")
-    logging.basicConfig(level=getattr(logging, log_level, logging.INFO))
-
-    # Quiet down noisy libraries in development.
-    if app.debug:
-        logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)

@@ -11,8 +11,13 @@ Or register as a Windows Service via NSSM::
 
 Waitress is a pure-Python WSGI server that runs natively on Windows
 without requiring C compilation or Unix-specific dependencies.
+
+Logging is configured by ``app.logging_config.configure_logging()``
+inside ``create_app()``.  Waitress's own logger is tamed to WARNING
+so it does not duplicate the application's request lifecycle logs.
 """
 
+import logging
 import os
 
 from waitress import serve
@@ -25,5 +30,8 @@ app = create_app(os.environ.get("FLASK_ENV", "production"))
 if __name__ == "__main__":
     host = os.environ.get("WAITRESS_HOST", "127.0.0.1")
     port = int(os.environ.get("WAITRESS_PORT", "8080"))
-    print(f"Starting Waitress on {host}:{port}")
+
+    logger = logging.getLogger("app.startup")
+    logger.info("Starting Waitress on %s:%s", host, port)
+
     serve(app, host=host, port=port)
