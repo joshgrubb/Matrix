@@ -52,6 +52,7 @@ import os
 import re
 import time
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 from flask import Flask, g, has_request_context, request
@@ -395,7 +396,13 @@ class ProductionJsonFormatter(jsonlogger.JsonFormatter):
         super().add_fields(log_record, record, message_dict)
 
         # Standardise the timestamp field name and format.
-        log_record["timestamp"] = self.formatTime(record, "%Y-%m-%dT%H:%M:%S.%fZ")
+        # NOTE: We use ``datetime.fromtimestamp`` instead of
+        # ``self.formatTime`` because ``time.strftime`` (which
+        # ``formatTime`` delegates to) does not support the ``%f``
+        # microsecond directive — only ``datetime.strftime`` does.
+        log_record["timestamp"] = datetime.fromtimestamp(
+            record.created, tz=timezone.utc
+        ).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         log_record["level"] = record.levelname
         log_record["logger"] = record.name
 
