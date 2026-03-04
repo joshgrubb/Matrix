@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}All Employees — PositionMatrix{% endblock %}
+{% block content %}
+<div class="pm-page-header">
+    <div>
+        <h1><i class="bi bi-people me-2"></i>All Employees</h1>
+        <p>Browse all employees across the organization, filtered to your access scope.</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        {% if show_inactive %}
+        <a href="{{ url_for('organization.all_employees', department_id=selected_department_id, division_id=selected_division_id, position_id=selected_position_id) }}"
+            class="pm-btn pm-btn-secondary pm-btn-sm">
+            <i class="bi bi-eye-slash"></i>
+            Hide Inactive
+        </a>
+        {% else %}
+        <a href="{{ url_for('organization.all_employees', department_id=selected_department_id, division_id=selected_division_id, position_id=selected_position_id, show_inactive='1') }}"
+            class="pm-btn pm-btn-secondary pm-btn-sm">
+            <i class="bi bi-eye"></i>
+            Show Inactive
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+{# ── Filter bar ── #}
+<div class="pm-card mb-3">
+    <div class="card-body py-2 px-3">
+        <form method="get" id="employee-filter-form" class="d-flex align-items-center gap-3 flex-wrap">
+            {# Preserve show_inactive across filter changes #}
+            {% if show_inactive %}
+            <input type="hidden" name="show_inactive" value="1">
+            {% endif %}
+
+            <label for="department_id" class="pm-form-label mb-0" style="white-space: nowrap;">
+                Department
+            </label>
+            <select class="form-select form-select-sm" id="department_id" name="department_id"
+                style="max-width: 260px;">
+                <option value="">All Departments</option>
+                {% for dept in departments %}
+                <option value="{{ dept.id }}" {{ 'selected' if selected_department_id==dept.id }}>
+                    {{ dept.department_code }} — {{ dept.department_name }}
+                </option>
+                {% endfor %}
+            </select>
+
+            <label for="division_id" class="pm-form-label mb-0" style="white-space: nowrap;">
+                Division
+            </label>
+            <select class="form-select form-select-sm" id="division_id" name="division_id" style="max-width: 260px;">
+                <option value="">All Divisions</option>
+                {# Pre-populate if a department filter is active #}
+                {% for div in divisions_for_dropdown %}
+                <option value="{{ div.id }}" {{ 'selected' if selected_division_id==div.id }}>
+                    {{ div.division_code }} — {{ div.division_name }}
+                </option>
+                {% endfor %}
+            </select>
+
+            <label for="position_id" class="pm-form-label mb-0" style="white-space: nowrap;">
+                Position
+            </label>
+            <select class="form-select form-select-sm" id="position_id" name="position_id" style="max-width: 260px;">
+                <option value="">All Positions</option>
+                {# Pre-populate if a division filter is active #}
+                {% for pos in positions_for_dropdown %}
+                <option value="{{ pos.id }}" {{ 'selected' if selected_position_id==pos.id }}>
+                    {{ pos.position_code }} — {{ pos.position_title }}
+                </option>
+                {% endfor %}
+            </select>
+
+            <button type="submit" class="pm-btn pm-btn-primary pm-btn-sm">
+                <i class="bi bi-funnel"></i>
+                Filter
+            </button>
+            {% if selected_department_id or selected_division_id or selected_position_id %}
+            <a href="{{ url_for('organization.all_employees', show_inactive='1' if show_inactive else None) }}"
+                class="pm-btn pm-btn-secondary pm-btn-sm">
+                <i class="bi bi-x-lg"></i>
+                Clear
+            </a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<div class="pm-card">
+    <div class="table-responsive">
+        <table class="table pm-table">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Position</th>
+                    <th>Division</th>
+                    <th>Department</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for emp in employees %}
+                <tr class="{{ 'pm-row-inactive' if not emp.is_active }}">
+                    <td><code>{{ emp.employee_code }}</code></td>
+                    <td style="font-weight: 500;">{{ emp.last_name }}, {{ emp.first_name }}</td>
+                    <td class="pm-text-muted">{{ emp.email or '—' }}</td>
+                    <td class="pm-text-muted">{{ emp.position.position_title }}</td>
+                    <td class="pm-text-muted">{{ emp.position.division.division_name }}</td>
+                    <td class="pm-text-muted">{{ emp.position.division.department.department_name }}</td>
+                    <td class="text-center">
+                        {% if emp.is_active %}
+                        <span class="pm-badge pm-badge-success">Active</span>
+                        {% else %}
+                        <span class="pm-badge pm-badge-neutral">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <a href="{{ url_for('requirements.position_summary', position_id=emp.position.id) }}"
+                            class="pm-btn pm-btn-secondary pm-btn-sm">
+                            <i class="bi bi-list-check"></i>
+                            Requirements
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8">
+                        <div class="pm-empty-state">
+                            <i class="bi bi-people d-block"></i>
+                            <p>No employees found. Run an HR sync from the Admin panel to import your organization.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{# ── Department → Division → Position cascade via HTMX ── #}
+<script>
+    /**
+     * When the department dropdown changes, reload the division
+     * dropdown options via HTMX and reset downstream dropdowns
+     * so stale filters are not submitted.
+     */
+    document.getElementById('department_id').addEventListener('change', function () {
+        var deptId = this.value;
+        var divSelect = document.getElementById('division_id');
+        var posSelect = document.getElementById('position_id');
+
+        // Reset division and position selections.
+        divSelect.innerHTML = '<option value="">All Divisions</option>';
+        posSelect.innerHTML = '<option value="">All Positions</option>';
+
+        if (!deptId) {
+            return;
+        }
+
+        // Fetch divisions for the selected department via existing HTMX endpoint.
+        htmx.ajax('GET',
+            '{{ url_for("organization.htmx_divisions", department_id=0) }}'.replace('/0', '/' + deptId),
+            { target: '#division_id', swap: 'innerHTML' }
+        );
+    });
+
+    /**
+     * When the division dropdown changes, reload the position
+     * dropdown options via HTMX and reset the position selection.
+     */
+    document.getElementById('division_id').addEventListener('change', function () {
+        var divId = this.value;
+        var posSelect = document.getElementById('position_id');
+
+        // Reset position selection.
+        posSelect.innerHTML = '<option value="">All Positions</option>';
+
+        if (!divId) {
+            return;
+        }
+
+        // Fetch positions for the selected division via existing HTMX endpoint.
+        htmx.ajax('GET',
+            '{{ url_for("organization.htmx_positions", division_id=0) }}'.replace('/0', '/' + divId),
+            { target: '#position_id', swap: 'innerHTML' }
+        );
+    });
+</script>
+{% endblock %}

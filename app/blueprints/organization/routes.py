@@ -153,6 +153,63 @@ def all_positions():
     )
 
 
+@bp.route("/employees")
+@login_required
+def all_employees():
+    """
+    Flat list of all employees visible to the current user.
+
+    Supports optional filtering by department, division, and/or
+    position, plus an inactive toggle.  The division dropdown
+    cascades from department selection, and the position dropdown
+    cascades from division selection, both via existing HTMX
+    endpoints.
+    """
+    include_inactive = request.args.get("show_inactive", "0") == "1"
+    department_id = request.args.get("department_id", type=int)
+    division_id = request.args.get("division_id", type=int)
+    position_id = request.args.get("position_id", type=int)
+
+    # Departments for the filter dropdown (scope-filtered).
+    departments = organization_service.get_departments(current_user)
+
+    # Divisions for the filter dropdown — scoped to selected department
+    # if one is active, otherwise show all visible divisions.
+    divisions_for_dropdown = organization_service.get_divisions(
+        current_user,
+        department_id=department_id,
+    )
+
+    # Positions for the filter dropdown — scoped to selected division
+    # if one is active, otherwise empty (user must pick division first).
+    positions_for_dropdown = []
+    if division_id is not None:
+        positions_for_dropdown = organization_service.get_positions_for_division(
+            division_id
+        )
+
+    # Employee list (scope-filtered, with optional filters applied).
+    employees = organization_service.get_employees(
+        current_user,
+        department_id=department_id,
+        division_id=division_id,
+        position_id=position_id,
+        include_inactive=include_inactive,
+    )
+
+    return render_template(
+        "organization/all_employees.html",
+        employees=employees,
+        departments=departments,
+        divisions_for_dropdown=divisions_for_dropdown,
+        positions_for_dropdown=positions_for_dropdown,
+        selected_department_id=department_id,
+        selected_division_id=division_id,
+        selected_position_id=position_id,
+        show_inactive=include_inactive,
+    )
+
+
 # =========================================================================
 # HTMX partial endpoints for dynamic dropdowns
 # =========================================================================

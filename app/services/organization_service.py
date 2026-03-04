@@ -268,6 +268,90 @@ def get_filled_count(
     return query.scalar()
 
 
+def get_employees(
+    user: User,
+    department_id: int | None = None,
+    division_id: int | None = None,
+    position_id: int | None = None,
+    include_inactive: bool = False,
+):
+    """
+    Return employees visible to the given user.
+
+    Employees inherit their organizational scope from the position
+    they belong to.  A user with department-level scope sees all
+    employees in positions within that department's divisions, and
+    so on.
+
+    Args:
+        user:             The current user (scope determines visibility).
+        department_id:    Optional filter to employees in a single department.
+        division_id:      Optional filter to employees in a single division.
+        position_id:      Optional filter to employees in a single position.
+        include_inactive: If True, include soft-deleted employees.
+
+    Returns:
+        List of Employee records ordered by last name, first name.
+    """
+    query = Employee.query.order_by(Employee.last_name, Employee.first_name)
+
+    if not include_inactive:
+        query = query.filter(Employee.is_active == True)
+
+    # Track which tables have been joined to prevent the
+    # duplicate-join error from SQL Server (error 1013).
+    position_joined = False
+    division_joined = False
+
+    # Apply explicit entity filters.  Position is the most specific,
+    # then division, then department — only one can apply at a time.
+    if position_id is not None:
+        # position_id lives directly on Employee; no join needed.
+        query = query.filter(Employee.position_id == position_id)
+    elif division_id is not None:
+        # Join Position so we can filter by its division_id.
+        query = query.join(Position, Employee.position_id == Position.id)
+        position_joined = True
+        query = query.filter(Position.division_id == division_id)
+    elif department_id is not None:
+        # Join Position → Division to reach the department.
+        query = query.join(Position, Employee.position_id == Position.id)
+        position_joined = True
+        query = query.join(Division, Position.division_id == Division.id)
+        division_joined = True
+        query = query.filter(Division.department_id == department_id)
+
+    # Scope filtering — only applies to non-org-wide users.
+    if not user.has_org_scope():
+        dept_ids = user.scoped_department_ids()
+        div_ids = user.scoped_division_ids()
+
+        if dept_ids or div_ids:
+            # Ensure Position and Division are joined for scope checks.
+            if not position_joined:
+                query = query.join(Position, Employee.position_id == Position.id)
+                position_joined = True
+            if not division_joined:
+                query = query.join(Division, Position.division_id == Division.id)
+                division_joined = True
+
+            # Build scope conditions: user sees employees whose
+            # position falls in a scoped department or division.
+            conditions = []
+            if dept_ids:
+                conditions.append(Division.department_id.in_(dept_ids))
+            if div_ids:
+                conditions.append(Division.id.in_(div_ids))
+            query = query.filter(db.or_(*conditions))
+
+    return query.all()
+
+
+def get_employee_by_id(employee_id: int) -> Employee | None:
+    """Return an employee by primary key, or None if not found."""
+    return db.session.get(Employee, employee_id)
+
+
 # -- Scope authorization helpers -------------------------------------------
 
 

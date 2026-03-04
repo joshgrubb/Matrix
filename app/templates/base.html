@@ -88,6 +88,13 @@
                     Positions
                 </a>
             </li>
+            <li>
+                <a class="pm-sidebar-link {% if request.endpoint in ('organization.all_employees',) %}active{% endif %}"
+                    href="{{ url_for('organization.all_employees') }}">
+                    <i class="bi bi-people"></i>
+                    Employees
+                </a>
+            </li>
         </ul>
 
         {# -- Equipment Catalog — admin and IT staff only -- #}

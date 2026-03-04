@@ -1,5 +1,5 @@
 """
-Organization blueprint — view departments, divisions, and positions.
+Organization blueprint — view departments, divisions, positions, and employees.
 
 All org data is read-only in the UI (sourced from NeoGov sync).
 """
