@@ -82,7 +82,11 @@ class Position(db.Model):
 
     ``authorized_count`` is the budgeted headcount for this position,
     used as the multiplier for per-user cost calculations.
-    ``filled_count`` is informational only — it does not affect costs.
+
+    ``filled_count`` is the number of active employees currently
+    assigned to this position.  Recalculated automatically at the
+    end of each HR sync by ``_recalculate_filled_counts()``.
+    Informational only — it does not affect cost calculations.
 
     ``requirements_status`` tracks where this position is in the
     equipment-setup workflow (Tier 3 #15):
@@ -91,7 +95,8 @@ class Position(db.Model):
         'submitted' — User completed wizard; awaiting IT review.
         'reviewed'  — IT staff has reviewed.
 
-    Synced from NeoGov (except requirements_status, which is app-managed).
+    Synced from NeoGov (except ``requirements_status`` and
+    ``filled_count``, which are app-managed).
     """
 
     __tablename__ = "position"
@@ -142,7 +147,9 @@ class Employee(db.Model):
     """
     Individual employee record synced from NeoGov.
 
-    Informational only in Phase 1 — used for filled count display.
+    Each active employee contributes to the ``filled_count`` on its
+    parent position.  The count is recalculated at the end of each
+    HR sync by ``_recalculate_filled_counts()`` in the sync service.
     """
 
     __tablename__ = "employee"

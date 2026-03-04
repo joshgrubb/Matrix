@@ -247,6 +247,13 @@ def get_filled_count(
     """
     Return the count of active employees across matching positions.
 
+    This is a dynamic query against the Employee table.  For most
+    display purposes, prefer reading ``Position.filled_count``
+    directly — that column is recalculated on each HR sync and
+    avoids the extra database round-trip.  This function remains
+    available for ad-hoc verification or contexts where real-time
+    accuracy is needed outside of a sync cycle.
+
     Args:
         department_id: Limit to employees in this department.
         division_id:   Limit to employees in this division.

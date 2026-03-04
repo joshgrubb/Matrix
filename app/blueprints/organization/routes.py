@@ -59,9 +59,11 @@ def division_detail(division_id):
 
     positions = organization_service.get_positions_for_division(division_id)
 
-    # Compute headcount statistics.
+    # Compute headcount statistics.  filled_count is recalculated
+    # on each HR sync, so we can read it directly from the model
+    # instead of running a separate employee-counting query.
     authorized = sum(p.authorized_count for p in positions)
-    filled = organization_service.get_filled_count(division_id=division_id)
+    filled = sum(p.filled_count for p in positions)
 
     return render_template(
         "organization/positions.html",

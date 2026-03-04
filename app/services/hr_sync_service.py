@@ -26,6 +26,8 @@ from datetime import datetime, timezone
 
 from flask import current_app
 
+from sqlalchemy import func
+
 from app.extensions import db
 from app.models.audit import HRSyncLog
 from app.models.organization import Department, Division, Employee, Position
@@ -81,6 +83,9 @@ def run_full_sync(user_id: int | None = None) -> HRSyncLog:
         # Flush so new employees have IDs for user FK lookups.
         db.session.flush()
 
+        # Recalculate Position.filled_count from live employee data.    # NEW
+        filled_stats = _recalculate_filled_counts()
+
         # Auto-provision auth.user accounts for employees.
         user_stats = _provision_users(user_id)
 
@@ -109,6 +114,8 @@ def run_full_sync(user_id: int | None = None) -> HRSyncLog:
                 "users_deactivated": user_stats["deactivated"],
                 "users_skipped": user_stats["skipped"],
                 "users_errors": user_stats["errors"],
+                "filled_counts_checked": filled_stats["positions_checked"],
+                "filled_counts_updated": filled_stats["positions_updated"],
             },
         )
 
@@ -549,6 +556,67 @@ def _sync_employees(
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logger.error("Error syncing employee %s: %s", emp_code, exc)
             stats["errors"] += 1
+
+    # No commit here — run_full_sync() commits atomically.
+    return stats
+
+
+# ==========================================================================
+# Filled count recalculation
+# ==========================================================================
+def _recalculate_filled_counts() -> dict:
+    """
+    Recalculate ``filled_count`` on every active position from live
+    employee data.
+
+    Counts active employees grouped by ``position_id`` and writes
+    the result into ``Position.filled_count``.  Positions with zero
+    active employees get their count set to 0 explicitly so that
+    deactivations are reflected.
+
+    This runs inside ``run_full_sync()`` after ``_sync_employees()``
+    completes, within the same atomic transaction.  Because employees
+    only enter the system through the NeoGov sync, running this
+    post-sync is sufficient to keep the column accurate.
+
+    Returns:
+        Dict with keys: positions_checked, positions_updated.
+    """
+    stats = {"positions_checked": 0, "positions_updated": 0}
+
+    # -- Step 1: Count active employees per position in one query. --
+    active_counts = (
+        db.session.query(
+            Employee.position_id,
+            func.count(Employee.id).label("active_count"),
+        )
+        .filter(Employee.is_active == True)  # pylint: disable=singleton-comparison
+        .group_by(Employee.position_id)
+        .all()
+    )
+
+    # Build a lookup: position_id → active employee count.
+    count_map = {row.position_id: row.active_count for row in active_counts}
+
+    # -- Step 2: Update every active position's filled_count. ------
+    # Includes positions with zero employees (they need to be reset
+    # to 0 if all their employees were deactivated).
+    positions = Position.query.filter_by(is_active=True).all()
+
+    for pos in positions:
+        stats["positions_checked"] += 1
+        new_count = count_map.get(pos.id, 0)
+
+        if pos.filled_count != new_count:
+            pos.filled_count = new_count
+            pos.updated_at = datetime.now(timezone.utc)
+            stats["positions_updated"] += 1
+
+    logger.info(
+        "Filled count recalculation complete: %d positions checked, " "%d updated.",
+        stats["positions_checked"],
+        stats["positions_updated"],
+    )
 
     # No commit here — run_full_sync() commits atomically.
     return stats
