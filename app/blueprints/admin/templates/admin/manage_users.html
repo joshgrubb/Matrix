@@ -66,6 +66,62 @@
     </div>
 </div>
 
+{# ── Search / filter bar ── #}
+{# Server-side filter form — searches name and email, filters by role.
+Follows the same pattern used on the software catalog (type filter)
+and all_employees (cascading dropdowns). The form submits via GET
+so filter values appear in the query string and are preserved by
+the pagination partial automatically. #}
+<div class="pm-card mb-3">
+    <div class="card-body py-2 px-3">
+        <form method="get" class="d-flex align-items-center gap-3 flex-wrap">
+
+            {# Preserve the show_inactive toggle across filter submissions. #}
+            {% if show_inactive %}
+            <input type="hidden" name="show_inactive" value="1">
+            {% endif %}
+
+            {# -- Text search input -- #}
+            <div class="input-group" style="max-width: 300px;">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="text" class="form-control form-control-sm" name="search" value="{{ search_term }}"
+                    placeholder="Search by name or email..." autocomplete="off">
+            </div>
+
+            {# -- Role dropdown filter -- #}
+            <div class="d-flex align-items-center gap-2">
+                <label for="filter_role_name" class="pm-form-label mb-0" style="white-space: nowrap;">
+                    Role
+                </label>
+                <select class="form-select form-select-sm" id="filter_role_name" name="role_name"
+                    style="max-width: 180px;">
+                    <option value="">All Roles</option>
+                    {% for role in roles %}
+                    <option value="{{ role.role_name }}" {{ 'selected' if role_filter==role.role_name }}>
+                        {{ role.role_name | replace('_', ' ') | title }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            {# -- Action buttons -- #}
+            <button type="submit" class="pm-btn pm-btn-primary pm-btn-sm">
+                <i class="bi bi-funnel"></i>
+                Filter
+            </button>
+
+            {# Only show the Clear button when at least one filter is active. #}
+            {% if search_term or role_filter %}
+            <a href="{{ url_for('admin.manage_users', show_inactive='1' if show_inactive else None) }}"
+                class="pm-btn pm-btn-secondary pm-btn-sm">
+                <i class="bi bi-x-lg"></i>
+                Clear
+            </a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
 {# ── Users table ── #}
 <div class="pm-card">
     <div class="table-responsive">
@@ -93,25 +149,25 @@
                         </span>
                     </td>
                     <td>
-                        {# ── Scope summary column ── #}
-                        {% set has_org = user.scopes | selectattr('scope_type', 'equalto', 'organization') | list %}
+                        {% if user.has_org_scope() %}
+                        <span class="pm-badge pm-badge-success" title="Organization-wide access">
+                            <i class="bi bi-globe2"></i> Org-wide
+                        </span>
+                        {% elif user.scopes | length > 0 %}
                         {% set dept_scopes = user.scopes | selectattr('scope_type', 'equalto', 'department') | list %}
                         {% set div_scopes = user.scopes | selectattr('scope_type', 'equalto', 'division') | list %}
-
-                        {% if has_org %}
-                        <span class="pm-badge pm-badge-info" title="Organization-wide access">
-                            <i class="bi bi-building"></i> Org-wide
+                        {% if dept_scopes %}
+                        <span class="pm-badge pm-badge-warning" title="{{ dept_scopes | length }} department(s)">
+                            <i class="bi bi-diagram-3"></i>
+                            {{ dept_scopes | length }} Dept{{ 's' if dept_scopes | length > 1 }}
                         </span>
-                        {% elif dept_scopes %}
-                        <span class="pm-badge pm-badge-success" title="Department-level access">
-                            <i class="bi bi-collection"></i>
-                            {{ dept_scopes | length }} dept{{ 's' if dept_scopes | length > 1 }}
+                        {% endif %}
+                        {% if div_scopes %}
+                        <span class="pm-badge pm-badge-warning" title="{{ div_scopes | length }} division(s)">
+                            <i class="bi bi-diagram-2"></i>
+                            {{ div_scopes | length }} Div{{ 's' if div_scopes | length > 1 }}
                         </span>
-                        {% elif div_scopes %}
-                        <span class="pm-badge pm-badge-warning" title="Division-level access">
-                            <i class="bi bi-list-nested"></i>
-                            {{ div_scopes | length }} div{{ 's' if div_scopes | length > 1 }}
-                        </span>
+                        {% endif %}
                         {% else %}
                         <span class="pm-badge pm-badge-danger" title="No scope assigned">
                             <i class="bi bi-x-circle"></i> None
@@ -171,7 +227,12 @@
         {% else %}
         <div class="pm-empty-state">
             <i class="bi bi-people d-block"></i>
+            {# Differentiate between "no users exist" and "no users match filter". #}
+            {% if search_term or role_filter %}
+            <p>No users match the current filters.</p>
+            {% else %}
             <p>No users found.</p>
+            {% endif %}
         </div>
         {% endif %}
     </div>

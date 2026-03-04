@@ -23,14 +23,28 @@ from app.services import audit_service, hr_sync_service, user_service
 @login_required
 @role_required("admin")
 def manage_users():
-    """List all application users with their roles and scopes."""
+    """
+    List all application users with their roles and scopes.
+
+    Supports optional filtering by a text search term (matched
+    against name and email) and by role name, in addition to the
+    existing active/inactive toggle.  Filter values are forwarded
+    to the template so the form fields repopulate on page load and
+    the pagination partial preserves them across pages.
+    """
     page = request.args.get("page", 1, type=int)
     include_inactive = request.args.get("show_inactive", "0") == "1"
+
+    # -- NEW: Read search and role filter from query string ----------------
+    search_term = request.args.get("search", "").strip() or None
+    role_filter = request.args.get("role_name", "").strip() or None
 
     users = user_service.get_all_users(
         include_inactive=include_inactive,
         page=page,
         per_page=25,
+        search=search_term,
+        role_name=role_filter,
     )
     roles = user_service.get_all_roles()
 
@@ -39,6 +53,10 @@ def manage_users():
         users=users,
         roles=roles,
         show_inactive=include_inactive,
+        # Pass current filter values back to the template so the
+        # form inputs can be pre-populated on page reload.
+        search_term=search_term or "",
+        role_filter=role_filter or "",
     )
 
 
@@ -71,17 +89,24 @@ def edit_user(user_id):
     )
 
     # Determine the user's current scope state for pre-selecting the form.
-    current_scope_type = _get_current_scope_type(user)
-    current_dept_ids = [
-        s.department_id
-        for s in user.scopes
-        if s.scope_type == "department" and s.department_id is not None
-    ]
-    current_div_ids = [
-        s.division_id
-        for s in user.scopes
-        if s.scope_type == "division" and s.division_id is not None
-    ]
+    current_scope_type = "none"
+    current_dept_ids = []
+    current_div_ids = []
+
+    if user.scopes:
+        first_scope = user.scopes[0]
+        current_scope_type = first_scope.scope_type
+
+        current_dept_ids = [
+            s.department_id
+            for s in user.scopes
+            if s.scope_type == "department" and s.department_id
+        ]
+        current_div_ids = [
+            s.division_id
+            for s in user.scopes
+            if s.scope_type == "division" and s.division_id
+        ]
 
     return render_template(
         "admin/edit_user.html",
@@ -95,59 +120,24 @@ def edit_user(user_id):
     )
 
 
-@bp.route("/users/<int:user_id>/htmx/divisions")
-@login_required
-@role_required("admin")
-def htmx_user_divisions(user_id):
-    """
-    HTMX partial: return division checkboxes for a selected department.
-
-    Used by the scope editor on the user edit page.  When the admin
-    picks a department in the division-scope flow, this endpoint
-    returns the checkbox list for that department's divisions.
-
-    Query Parameters:
-        department_id (int): The department whose divisions to list.
-    """
-    department_id = request.args.get("department_id", type=int)
-    user = user_service.get_user_by_id(user_id)
-
-    # Build the list of currently selected division IDs for pre-checking.
-    current_div_ids = []
-    if user is not None:
-        current_div_ids = [
-            s.division_id
-            for s in user.scopes
-            if s.scope_type == "division" and s.division_id is not None
-        ]
-
-    divisions = []
-    if department_id is not None:
-        divisions = (
-            Division.query.filter_by(department_id=department_id, is_active=True)
-            .order_by(Division.division_name)
-            .all()
-        )
-
-    return render_template(
-        "admin/_division_checkboxes.html",
-        divisions=divisions,
-        current_div_ids=current_div_ids,
-    )
-
-
 @bp.route("/users/provision", methods=["POST"])
 @login_required
 @role_required("admin")
 def provision_user():
-    """Pre-provision a new user with a role assignment."""
+    """Pre-provision a new user account."""
     email = request.form.get("email", "").strip()
     first_name = request.form.get("first_name", "").strip()
     last_name = request.form.get("last_name", "").strip()
     role_name = request.form.get("role_name", "read_only")
 
     if not email or not first_name or not last_name:
-        flash("Email, first name, and last name are required.", "danger")
+        flash("Email, first name, and last name are required.", "warning")
+        return redirect(url_for("admin.manage_users"))
+
+    # Check for duplicate email.
+    existing = user_service.get_user_by_email(email)
+    if existing is not None:
+        flash(f"A user with email '{email}' already exists.", "warning")
         return redirect(url_for("admin.manage_users"))
 
     try:
@@ -158,7 +148,7 @@ def provision_user():
             role_name=role_name,
             provisioned_by=current_user.id,
         )
-        flash(f"User '{email}' provisioned with role '{role_name}'.", "success")
+        flash(f"User '{first_name} {last_name}' provisioned.", "success")
     except ValueError as exc:
         flash(str(exc), "danger")
 
@@ -168,12 +158,15 @@ def provision_user():
 @bp.route("/users/<int:user_id>/role", methods=["POST"])
 @login_required
 @role_required("admin")
-def update_user_role(user_id):
-    """Change a user's role."""
-    new_role = request.form.get("role_name", "read_only")
+def change_user_role(user_id):
+    """Update a user's role."""
+    new_role = request.form.get("role_name", "").strip()
+    if not new_role:
+        flash("No role specified.", "warning")
+        return redirect(url_for("admin.edit_user", user_id=user_id))
 
     try:
-        user_service.update_user_role(
+        user_service.change_user_role(
             user_id=user_id,
             new_role_name=new_role,
             changed_by=current_user.id,
@@ -185,19 +178,16 @@ def update_user_role(user_id):
     return redirect(url_for("admin.edit_user", user_id=user_id))
 
 
-@bp.route("/users/<int:user_id>/scopes", methods=["POST"])
+@bp.route("/users/<int:user_id>/scope", methods=["POST"])
 @login_required
 @role_required("admin")
-def update_user_scopes(user_id):
-    """
-    Update a user's organizational scopes.
+def update_user_scope(user_id):
+    """Replace all scopes for a user based on the submitted form."""
+    scope_type = request.form.get("scope_type", "").strip()
 
-    Accepts the scope_type radio value and corresponding department
-    or division checkbox selections from the edit user form.
-    """
-    scope_type = request.form.get("scope_type", "organization")
-
+    # Build scope list from the form data.
     scopes = []
+
     if scope_type == "organization":
         scopes.append({"scope_type": "organization"})
     elif scope_type == "department":
@@ -308,9 +298,9 @@ def audit_logs():
         "admin/audit_logs.html",
         logs=logs,
         entity_types=entity_types,
+        selected_user_id=user_id_filter,
         selected_action=action_filter,
         selected_entity=entity_filter,
-        selected_user_id=user_id_filter,
     )
 
 
@@ -325,7 +315,7 @@ def audit_logs():
 def hr_sync():
     """Display HR sync status and history."""
     page = request.args.get("page", 1, type=int)
-    sync_logs = hr_sync_service.get_sync_logs(page=page)
+    sync_logs = hr_sync_service.get_sync_logs(page=page, per_page=20)
 
     return render_template(
         "admin/hr_sync.html",
@@ -336,47 +326,22 @@ def hr_sync():
 @bp.route("/hr-sync/run", methods=["POST"])
 @login_required
 @role_required("admin", "it_staff")
-def hr_sync_run():
-    """Trigger a full NeoGov HR sync."""
-    sync_log = hr_sync_service.run_full_sync(user_id=current_user.id)
-
-    if sync_log.status == "completed":
-        flash("HR sync completed successfully.", "success")
-    else:
-        flash(
-            f"HR sync failed: {sync_log.error_message or 'Unknown error'}",
-            "danger",
-        )
+def run_hr_sync():
+    """Trigger a full HR sync from NeoGov."""
+    try:
+        sync_log = hr_sync_service.run_full_sync(user_id=current_user.id)
+        if sync_log.status == "success":
+            flash(
+                f"HR sync completed — {sync_log.records_processed} records processed.",
+                "success",
+            )
+        else:
+            flash(
+                f"HR sync finished with status: {sync_log.status}. "
+                f"Check the log for details.",
+                "warning",
+            )
+    except Exception as exc:  # pylint: disable=broad-except
+        flash(f"HR sync failed: {exc}", "danger")
 
     return redirect(url_for("admin.hr_sync"))
-
-
-# =========================================================================
-# Internal helpers
-# =========================================================================
-
-
-def _get_current_scope_type(user) -> str:
-    """
-    Determine the user's primary scope type for pre-selecting the form.
-
-    Returns:
-        One of ``'organization'``, ``'department'``, ``'division'``,
-        or ``'none'`` if the user has no scopes assigned.
-    """
-    if not user.scopes:
-        return "none"
-
-    # Organization scope takes precedence.
-    if any(s.scope_type == "organization" for s in user.scopes):
-        return "organization"
-
-    # Check for department-level scopes.
-    if any(s.scope_type == "department" for s in user.scopes):
-        return "department"
-
-    # Check for division-level scopes.
-    if any(s.scope_type == "division" for s in user.scopes):
-        return "division"
-
-    return "none"

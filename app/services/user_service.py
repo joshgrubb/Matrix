@@ -38,21 +38,62 @@ def get_all_users(
     include_inactive: bool = False,
     page: int = 1,
     per_page: int = 50,
+    search: str | None = None,
+    role_name: str | None = None,
 ):
     """
     Return a paginated list of users, ordered by last name.
+
+    Supports optional text search across name and email fields,
+    and filtering by role.  The search term is matched case-
+    insensitively against first name, last name, email, and a
+    concatenated "first last" full name so queries like
+    "Jane Doe" work as expected.
 
     Args:
         include_inactive: If True, include deactivated users.
         page:             Page number (1-indexed).
         per_page:         Records per page.
+        search:           Optional text to match against name or
+                          email (case-insensitive ILIKE).
+        role_name:        Optional role name to filter by (exact
+                          match against ``auth.role.role_name``).
 
     Returns:
         A SQLAlchemy pagination object.
     """
     query = User.query.order_by(User.last_name, User.first_name)
+
+    # -- Active / inactive filter ------------------------------------------
     if not include_inactive:
-        query = query.filter(User.is_active == True)
+        query = query.filter(
+            User.is_active == True
+        )  # pylint: disable=singleton-comparison
+
+    # -- Text search filter ------------------------------------------------
+    # Match the search term against first name, last name, email, or the
+    # concatenated full name ("first last").  Uses SQL Server-compatible
+    # string concatenation via the ``+`` operator on column expressions.
+    if search:
+        like_term = f"%{search}%"
+        query = query.filter(
+            db.or_(
+                User.first_name.ilike(like_term),
+                User.last_name.ilike(like_term),
+                User.email.ilike(like_term),
+                (User.first_name + " " + User.last_name).ilike(like_term),
+            )
+        )
+
+    # -- Role filter -------------------------------------------------------
+    # Join the Role table and filter by role_name.  The join is only added
+    # when a role filter is active to avoid unnecessary overhead on the
+    # default unfiltered query.
+    if role_name:
+        query = query.join(Role, User.role_id == Role.id).filter(
+            Role.role_name == role_name
+        )
+
     return query.paginate(page=page, per_page=per_page, error_out=False)
 
 
@@ -92,21 +133,20 @@ def provision_user(
     if role is None:
         raise ValueError(f"Role '{role_name}' not found.")
 
+    now = datetime.now(timezone.utc)
+
     user = User(
         email=email,
         first_name=first_name,
         last_name=last_name,
         role_id=role.id,
+        is_active=True,
         entra_object_id=entra_object_id,
         provisioned_by=provisioned_by,
-        provisioned_at=datetime.now(timezone.utc) if provisioned_by else None,
+        provisioned_at=now,
     )
     db.session.add(user)
-    db.session.flush()  # Get the user ID for audit logging.
-
-    # Assign default org-wide scope for admin/it_staff/budget_executive.
-    if role_name in ("admin", "it_staff", "budget_executive"):
-        _add_org_scope(user)
+    db.session.flush()  # Get the auto-generated id.
 
     audit_service.log_change(
         user_id=provisioned_by,
@@ -122,21 +162,24 @@ def provision_user(
     )
     db.session.commit()
 
-    logger.info("Provisioned user %s with role %s", email, role_name)
+    logger.info("Provisioned user: %s (%s)", email, role_name)
     return user
 
 
-def update_user_role(
+# -- Role and status management --------------------------------------------
+
+
+def change_user_role(
     user_id: int,
     new_role_name: str,
-    changed_by: int | None = None,
+    changed_by: int,
 ) -> User:
     """
-    Change a user's role.
+    Update a user's role.
 
     Args:
-        user_id:       The user to update.
-        new_role_name: The new role to assign.
+        user_id:       ID of the user to update.
+        new_role_name: Name of the new role.
         changed_by:    ID of the admin making the change.
 
     Returns:
@@ -153,22 +196,21 @@ def update_user_role(
     if new_role is None:
         raise ValueError(f"Role '{new_role_name}' not found.")
 
-    old_role_name = user.role.role_name
+    old_role_name = user.role_name
     user.role_id = new_role.id
-    user.updated_at = datetime.now(timezone.utc)
 
     audit_service.log_change(
         user_id=changed_by,
         action_type="UPDATE",
         entity_type="auth.user",
-        entity_id=user.id,
+        entity_id=user_id,
         previous_value={"role": old_role_name},
         new_value={"role": new_role_name},
     )
     db.session.commit()
 
     logger.info(
-        "Changed role for user %s: %s -> %s",
+        "Changed role for user %s: %s → %s",
         user.email,
         old_role_name,
         new_role_name,
@@ -176,49 +218,75 @@ def update_user_role(
     return user
 
 
-def deactivate_user(user_id: int, changed_by: int | None = None) -> User:
-    """Soft-delete a user by setting is_active to False."""
+def deactivate_user(user_id: int, changed_by: int) -> User:
+    """
+    Soft-delete a user by setting is_active to False.
+
+    Args:
+        user_id:    ID of the user to deactivate.
+        changed_by: ID of the admin making the change.
+
+    Returns:
+        The updated User record.
+
+    Raises:
+        ValueError: If the user is not found or already inactive.
+    """
     user = get_user_by_id(user_id)
     if user is None:
         raise ValueError(f"User ID {user_id} not found.")
+    if not user.is_active:
+        raise ValueError(f"User '{user.email}' is already inactive.")
 
     user.is_active = False
-    user.updated_at = datetime.now(timezone.utc)
 
     audit_service.log_change(
         user_id=changed_by,
-        action_type="UPDATE",
+        action_type="DEACTIVATE",
         entity_type="auth.user",
-        entity_id=user.id,
+        entity_id=user_id,
         previous_value={"is_active": True},
         new_value={"is_active": False},
     )
     db.session.commit()
 
-    logger.info("Deactivated user %s", user.email)
+    logger.info("Deactivated user: %s", user.email)
     return user
 
 
-def reactivate_user(user_id: int, changed_by: int | None = None) -> User:
-    """Re-enable a previously deactivated user."""
+def reactivate_user(user_id: int, changed_by: int) -> User:
+    """
+    Re-enable a previously deactivated user.
+
+    Args:
+        user_id:    ID of the user to reactivate.
+        changed_by: ID of the admin making the change.
+
+    Returns:
+        The updated User record.
+
+    Raises:
+        ValueError: If the user is not found or already active.
+    """
     user = get_user_by_id(user_id)
     if user is None:
         raise ValueError(f"User ID {user_id} not found.")
+    if user.is_active:
+        raise ValueError(f"User '{user.email}' is already active.")
 
     user.is_active = True
-    user.updated_at = datetime.now(timezone.utc)
 
     audit_service.log_change(
         user_id=changed_by,
-        action_type="UPDATE",
+        action_type="REACTIVATE",
         entity_type="auth.user",
-        entity_id=user.id,
+        entity_id=user_id,
         previous_value={"is_active": False},
         new_value={"is_active": True},
     )
     db.session.commit()
 
-    logger.info("Reactivated user %s", user.email)
+    logger.info("Reactivated user: %s", user.email)
     return user
 
 
@@ -228,16 +296,15 @@ def reactivate_user(user_id: int, changed_by: int | None = None) -> User:
 def set_user_scopes(
     user_id: int,
     scopes: list[dict],
-    changed_by: int | None = None,
+    changed_by: int,
 ) -> list[UserScope]:
     """
-    Replace all scopes for a user with the provided list.
+    Replace all scopes for a user with the given list.
 
     Args:
-        user_id:    The user to update.
-        scopes:     List of scope dicts, each containing:
-                    ``scope_type`` (organization/department/division),
-                    and optionally ``department_id`` or ``division_id``.
+        user_id:    ID of the user whose scopes to set.
+        scopes:     List of scope dicts, each with ``scope_type``
+                    and optionally ``department_id`` / ``division_id``.
         changed_by: ID of the admin making the change.
 
     Returns:
