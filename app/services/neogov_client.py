@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 _MAX_PAGE_SIZE = 50
 _ACTIVE_EMPLOYMENT_STATUSES: set[str] = {"ACTIVE", "MAT LEAVE", "LEAVE"}
 
+
 class NeoGovApiClient:
     """
     Client for the NeoGov REST API (v1).
@@ -646,25 +647,69 @@ class NeoGovApiClient:
         Transform raw NeoGov employee detail records into the normalized
         shape expected by ``hr_sync_service._sync_employees()``.
 
-        The ``/employees/{personCode}`` endpoint returns a flat
-        PascalCase structure::
+        The ``/employees/{personCode}`` endpoint returns a deeply
+        nested structure.  The hierarchy is::
 
             {
                 "employeeNumber": "12345",
                 "firstName": "Jane",
-                "MiddleName": "M",
                 "lastName": "Doe",
-                "workEmail": "jdoe@example.gov",
-                "positionCode": "23001",
-                "employeeStatus": "Active",
-                ...
+                "employments": [
+                    {
+                        "active": true,
+                        "separationDate": null,
+                        "assignments": [
+                            {
+                                "prime": true,
+                                "status": "Active",
+                                "code": "ASG001",
+                                "assignmentDetails": [
+                                    {
+                                        "workEmail": "jdoe@example.gov",
+                                        "employeeStatus": "Active",
+                                        "positionDetails": {
+                                            "code": "23001",
+                                            ...
+                                        },
+                                        "departmentDetails": {
+                                            "code": "DEPT01",
+                                            ...
+                                        },
+                                        "divisionDetails": {
+                                            "code": "DIV01",
+                                            ...
+                                        },
+                                        ...
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "personals": [
+                    {
+                        "personalEmail": "jane@home.com",
+                        ...
+                    }
+                ]
             }
 
-        Active/inactive determination is based on the
-        ``employeeStatus`` field.  Values in
-        ``_ACTIVE_EMPLOYMENT_STATUSES`` are treated as active;
-        all others (e.g., "Terminated", "Retired", "Separated")
-        are treated as inactive.
+        Active/inactive determination uses two signals:
+
+        1. ``employments[0].active`` — boolean flag (primary check).
+        2. ``employments[0].separationDate`` — a non-null value
+           indicates the employee has separated (secondary check).
+
+        The primary assignment is identified by ``prime == True``
+        and ``status == "Active"`` inside the ``assignments`` array.
+        Position code, work email, and other role-specific fields
+        live inside that assignment's ``assignmentDetails[0]`` object,
+        with position code further nested inside ``positionDetails``.
+
+        Only email addresses matching the organization's Microsoft
+        Entra tenant domain (``@townofclaytonnc.org``) are kept.
+        Non-matching addresses are discarded because they cannot
+        authenticate via OAuth2.
 
         Args:
             raw_employees: Raw dicts from individual employee fetches.
@@ -676,19 +721,163 @@ class NeoGovApiClient:
         """
         normalized: list[dict[str, Any]] = []
 
+        # Only emails on the organization's Microsoft Entra tenant
+        # domain can authenticate via OAuth2.  All other addresses
+        # (personal Gmail, old domains, etc.) are discarded.
+        tenant_domain = "@townofclaytonnc.org"
+
         for emp in raw_employees:
             # -- Discovery logging -------------------------------------
-            # On the first employee, log all available field names so
-            # an admin can verify the correct status field.  This only
-            # fires at DEBUG level and only for the first record.
+            # On the first employee, log keys at every nesting level so
+            # an admin can verify field names.  Only fires at DEBUG
+            # level and only for the first record.
             if not normalized and emp:
                 logger.debug(
                     "Raw NeoGov employee fields (first record): %s",
                     sorted(emp.keys()),
                 )
+                # Log nested employments structure.
+                sample_employments = emp.get("employments") or []
+                if sample_employments and isinstance(sample_employments[0], dict):
+                    logger.debug(
+                        "Nested 'employments[0]' fields: %s",
+                        sorted(sample_employments[0].keys()),
+                    )
+                    # Log assignments sub-structure.
+                    sample_assignments = sample_employments[0].get("assignments") or []
+                    if sample_assignments and isinstance(sample_assignments[0], dict):
+                        logger.debug(
+                            "Nested 'assignments[0]' fields: %s",
+                            sorted(sample_assignments[0].keys()),
+                        )
+                        # Log assignmentDetails sub-structure.
+                        # assignmentDetails is itself a list of dicts.
+                        sample_details_list = (
+                            sample_assignments[0].get("assignmentDetails") or []
+                        )
+                        if (
+                            isinstance(sample_details_list, list)
+                            and sample_details_list
+                            and isinstance(sample_details_list[0], dict)
+                        ):
+                            logger.debug(
+                                "Nested 'assignmentDetails[0]' fields: %s",
+                                sorted(sample_details_list[0].keys()),
+                            )
+                            # Log positionDetails sub-structure.
+                            sample_pos_details = sample_details_list[0].get(
+                                "positionDetails"
+                            )
+                            if isinstance(sample_pos_details, dict):
+                                logger.debug(
+                                    "Nested 'positionDetails' fields: %s",
+                                    sorted(sample_pos_details.keys()),
+                                )
+                            elif (
+                                isinstance(sample_pos_details, list)
+                                and sample_pos_details
+                                and isinstance(sample_pos_details[0], dict)
+                            ):
+                                logger.debug(
+                                    "Nested 'positionDetails[0]' fields: %s",
+                                    sorted(sample_pos_details[0].keys()),
+                                )
+                # Log personals structure.
+                sample_personals = emp.get("personals") or []
+                if sample_personals and isinstance(sample_personals[0], dict):
+                    logger.debug(
+                        "Nested 'personals[0]' fields: %s",
+                        sorted(sample_personals[0].keys()),
+                    )
+
+            # -- Extract nested employment record ----------------------
+            # Use the first entry as the current employment.  Fall back
+            # to an empty dict so subsequent .get() calls are safe.
+            employments = emp.get("employments") or []
+            primary_employment = (
+                employments[0]
+                if employments and isinstance(employments[0], dict)
+                else {}
+            )
+
+            # -- Locate the primary active assignment ------------------
+            # The ``assignments`` array may contain multiple entries
+            # (e.g., secondary or historical assignments).  The
+            # canonical current assignment has ``prime == True`` and
+            # ``status == "Active"``.  If no exact match is found,
+            # fall back to the first assignment with ``prime == True``,
+            # then to the first assignment overall.
+            assignments = primary_employment.get("assignments") or []
+            primary_assignment: dict[str, Any] = {}
+
+            # First pass: find the prime + Active assignment.
+            for assignment in assignments:
+                if not isinstance(assignment, dict):
+                    continue
+                if (
+                    assignment.get("prime") is True
+                    and assignment.get("status") == "Active"
+                ):
+                    primary_assignment = assignment
+                    break
+
+            # Fallback: prime assignment regardless of status.
+            if not primary_assignment:
+                for assignment in assignments:
+                    if not isinstance(assignment, dict):
+                        continue
+                    if assignment.get("prime") is True:
+                        primary_assignment = assignment
+                        break
+
+            # Last resort: first assignment in the array.
+            if not primary_assignment and assignments:
+                first = assignments[0]
+                if isinstance(first, dict):
+                    primary_assignment = first
+
+            # -- Extract assignmentDetails -----------------------------
+            # ``assignmentDetails`` is a list of dicts.  Extract the
+            # first entry for position code, work email, and other
+            # role-specific fields.
+            details_list = primary_assignment.get("assignmentDetails") or []
+            assignment_details = (
+                details_list[0]
+                if (
+                    isinstance(details_list, list)
+                    and details_list
+                    and isinstance(details_list[0], dict)
+                )
+                else {}
+            )
+
+            # -- Extract positionDetails -------------------------------
+            # Position code is nested inside ``positionDetails`` within
+            # ``assignmentDetails[0]``.  This may be a dict or a list;
+            # handle both cases defensively.
+            raw_position_details = assignment_details.get("positionDetails")
+            if isinstance(raw_position_details, dict):
+                position_details = raw_position_details
+            elif (
+                isinstance(raw_position_details, list)
+                and raw_position_details
+                and isinstance(raw_position_details[0], dict)
+            ):
+                position_details = raw_position_details[0]
+            else:
+                position_details = {}
+
+            # -- Extract nested personals record -----------------------
+            # ``personals`` may hold contact info like personal email.
+            # Only used as a fallback if it matches the tenant domain.
+            personals = emp.get("personals") or []
+            primary_personal = (
+                personals[0] if personals and isinstance(personals[0], dict) else {}
+            )
 
             # -- Employee ID -------------------------------------------
-            # employeeNumber is the canonical identifier.
+            # ``employeeNumber`` is the canonical identifier and lives
+            # at the top level of the response.
             employee_id = emp.get("employeeNumber", "")
 
             # -- Name fields -------------------------------------------
@@ -696,30 +885,60 @@ class NeoGovApiClient:
             last_name = emp.get("lastName", "")
 
             # -- Email -------------------------------------------------
-            # Prefer work email; fall back to personal email.
-            email = emp.get("workEmail")
+            # Collect candidate emails in priority order, then keep
+            # only the first one matching the organization's Microsoft
+            # Entra tenant domain.  Non-matching addresses (personal
+            # Gmail, legacy domains, etc.) cannot authenticate via
+            # OAuth2 and are discarded.
+            candidate_emails = [
+                assignment_details.get("workEmail"),
+                primary_employment.get("workEmail"),
+                emp.get("workEmail"),
+                primary_personal.get("personalEmail"),
+            ]
+            email = None
+            for candidate in candidate_emails:
+                if (
+                    candidate
+                    and isinstance(candidate, str)
+                    and candidate.lower().endswith(tenant_domain)
+                ):
+                    email = candidate
+                    break
 
             # -- Position code -----------------------------------------
-            position_code = emp.get("positionCode", "")
+            # Nested inside ``positionDetails`` within
+            # ``assignmentDetails[0]``.  The field is ``positionCode``
+            # inside that object.  Fall back through the nesting levels
+            # for compatibility.
+            position_code = (
+                position_details.get("positionCode")
+                or position_details.get("code")
+                or assignment_details.get("positionCode")
+                or primary_assignment.get("positionCode")
+                or emp.get("positionCode", "")
+            )
 
             # -- Employment status -------------------------------------
-            # NeoGov returns a string like "Active", "Terminated",
-            # "Retired", "Leave", "Separated", etc.
-            #
-            # IMPORTANT: If the field name below does not match your
-            # NeoGov instance, run the sync with LOG_LEVEL=DEBUG and
-            # look for the "Raw NeoGov employee fields" log entry to
-            # discover the correct field name.
-            employment_status = emp.get("employeeStatus", "")
-            is_active = employment_status in _ACTIVE_EMPLOYMENT_STATUSES
+            # ``employments[0].active`` is a boolean flag.  A non-null
+            # ``separationDate`` is a secondary indicator that the
+            # employee has left.  Both must agree for active status.
+            emp_active_flag = primary_employment.get("active")
+            separation_date = primary_employment.get("separationDate")
+
+            # Employee is active only when the boolean flag is
+            # explicitly True AND there is no separation date.
+            is_active = emp_active_flag is True and not separation_date
 
             if not is_active:
                 logger.debug(
-                    "Employee %s (%s %s) has status '%s' — " "will be marked inactive.",
+                    "Employee %s (%s %s) — active=%s, "
+                    "separationDate=%s — will be marked inactive.",
                     employee_id,
                     first_name,
                     last_name,
-                    employment_status,
+                    emp_active_flag,
+                    separation_date,
                 )
 
             # Skip employees missing critical identifiers.

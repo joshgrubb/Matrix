@@ -640,6 +640,24 @@ def _provision_users(user_id: int | None) -> dict:
                 stats["skipped"] += 1
                 continue
 
+            # Guard: email must belong to the organization's
+            # Microsoft Entra tenant.  Non-tenant addresses (personal
+            # Gmail, legacy domains, etc.) cannot authenticate via
+            # OAuth2 and must not receive auth.user records.
+            tenant_domain = "@townofclaytonnc.org"
+            if not emp.email.strip().lower().endswith(tenant_domain):
+                logger.debug(
+                    "Employee %s (%s %s) email '%s' is not on "
+                    "tenant domain %s — skipping user provisioning.",
+                    emp.employee_code,
+                    emp.first_name,
+                    emp.last_name,
+                    emp.email,
+                    tenant_domain,
+                )
+                stats["skipped"] += 1
+                continue
+
             # Guard: position/division chain must be intact.
             if emp.position is None or emp.position.division is None:
                 logger.warning(
