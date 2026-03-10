@@ -223,4 +223,91 @@
         form.submit();
     }
 </script>
+
+{# ================================================================
+P1 Item 1 (Tier 5.3): Auto-select department and division
+dropdowns when only one option exists.
+
+When a manager manages only one department, auto-select it and
+fire the HTMX cascade to populate divisions. When the HTMX
+response returns only one division, auto-select that too and
+fire the cascade to populate positions and copy-from.
+
+Fields remain visible so the user can see which department and
+division they are working in.
+
+This is purely additive client-side JavaScript. The existing
+event listeners above are untouched. If these scripts fail, the
+dropdowns remain functional and the user selects manually
+(graceful degradation).
+================================================================ #}
+
+{% if departments | length == 1 %}
+<script>
+    /**
+     * P1 Item 1a: Auto-select the department dropdown.
+     *
+     * When only one department exists in the user's scope,
+     * programmatically select it and dispatch a change event to
+     * trigger the existing HTMX cascade (loads divisions). The
+     * field stays visible so the user sees which department is
+     * active.
+     */
+    document.addEventListener('DOMContentLoaded', function () {
+        var dept = document.getElementById('department_id');
+
+        /* Set the single department's value. */
+        dept.value = '{{ departments[0].id }}';
+
+        /* Dispatch change to trigger the existing department change
+           listener, which resets downstream dropdowns and fires
+           the HTMX call to /org/htmx/divisions/<dept_id>. */
+        dept.dispatchEvent(new Event('change'));
+    });
+</script>
+{% endif %}
+
+<script>
+    /**
+     * P1 Item 1b: Auto-select the division dropdown when only one
+     * division is returned by HTMX.
+     *
+     * The division dropdown is populated asynchronously after the
+     * department fires its HTMX call. We cannot check the option
+     * count on DOMContentLoaded because the options have not loaded
+     * yet. Instead, we listen for the htmx:afterSettle event on
+     * the #division_id element. afterSettle fires after HTMX has
+     * fully processed the swap and the DOM is stable, which avoids
+     * a timing issue where afterSwap can fire before the browser
+     * has finished rendering the new <option> elements into the
+     * <select>. This ensures the programmatic value assignment and
+     * subsequent change dispatch reliably trigger the position and
+     * copy-from HTMX cascades.
+     *
+     * Per HTMX docs, htmx.ajax() fires lifecycle events on the
+     * target element. The event bubbles, so a listener on the
+     * element itself catches it.
+     */
+    document.addEventListener('DOMContentLoaded', function () {
+        var divSelect = document.getElementById('division_id');
+
+        divSelect.addEventListener('htmx:afterSettle', function () {
+            /* Count real options, skipping the placeholder
+               "-- Select Division --" which has value="". */
+            var realOptions = divSelect.querySelectorAll(
+                'option[value]:not([value=""])'
+            );
+
+            if (realOptions.length === 1) {
+                /* Auto-select the single division. */
+                divSelect.value = realOptions[0].value;
+
+                /* Dispatch change to trigger the existing division
+                   change listener, which populates position and
+                   copy-from dropdowns via HTMX. */
+                divSelect.dispatchEvent(new Event('change'));
+            }
+        });
+    });
+</script>
 {% endblock %}
