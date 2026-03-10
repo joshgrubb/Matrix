@@ -269,6 +269,70 @@ def reactivate_user(user_id):
 
 
 # =========================================================================
+# HTMX Partials for User Scope Editor
+# =========================================================================
+
+
+@bp.route("/users/<int:user_id>/htmx/divisions")
+@login_required
+@role_required("admin")
+def htmx_user_divisions(user_id):
+    """
+    Return division checkbox HTML for the scope editor via HTMX.
+
+    Accepts an optional ``department_id`` query parameter to filter
+    divisions to a single department.  When omitted (or empty), all
+    active divisions are returned.
+
+    The user's existing division-scope IDs are passed through so
+    that previously selected checkboxes remain checked after the
+    HTMX swap.
+
+    Args:
+        user_id: The user being edited (used to look up current scopes).
+
+    Query Parameters:
+        department_id (int, optional): Filter divisions to this department.
+
+    Returns:
+        Rendered ``_division_checkboxes.html`` partial.
+    """
+    # Look up the user to determine their current division scopes.
+    user = user_service.get_user_by_id(user_id)
+    if user is None:
+        return "<p class='pm-text-muted'>User not found.</p>", 404
+
+    # Build list of currently scoped division IDs for pre-checking boxes.
+    current_div_ids = [
+        s.division_id
+        for s in user.scopes
+        if s.scope_type == "division" and s.division_id
+    ]
+
+    # Filter divisions by department if a filter value was provided.
+    department_id = request.args.get("department_id", type=int)
+
+    if department_id:
+        divisions = (
+            Division.query.filter_by(is_active=True, department_id=department_id)
+            .order_by(Division.division_name)
+            .all()
+        )
+    else:
+        divisions = (
+            Division.query.filter_by(is_active=True)
+            .order_by(Division.division_name)
+            .all()
+        )
+
+    return render_template(
+        "components/_division_checkboxes.html",
+        divisions=divisions,
+        current_div_ids=current_div_ids,
+    )
+
+
+# =========================================================================
 # Audit Logs (admin + IT staff)
 # =========================================================================
 
