@@ -220,8 +220,16 @@ def all_employees():
 @bp.route("/htmx/divisions/<int:department_id>")
 @login_required
 def htmx_divisions(department_id):
-    """Return division <option> elements for an HTMX-powered dropdown."""
-    divisions = organization_service.get_divisions_for_department(department_id)
+    """Return scope-filtered division <option> elements for a dropdown.
+    Uses the scope-aware get_divisions() so that managers only see
+    divisions within their assigned scope, not every division in the
+    department.  Admin and IT users with org-wide scope are unaffected
+    (they continue to see all divisions).
+    """
+    divisions = organization_service.get_divisions(
+        current_user,
+        department_id=department_id,
+    )
     return render_template(
         "components/_division_select.html",
         divisions=divisions,
