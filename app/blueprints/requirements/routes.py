@@ -107,9 +107,9 @@ def select_hardware(position_id):
                 items=items,
                 user_id=current_user.id,
             )
-            flash("Hardware selections saved.", "success")
+
             # Tier 3 (#15): Mark position as 'draft' if not yet
-            # submitted — the user has started configuring.
+            # submitted -- the user has started configuring.
             try:
                 current_status = requirement_service.get_requirements_status(
                     position_id
@@ -122,6 +122,20 @@ def select_hardware(position_id):
                     )
             except ValueError:
                 pass  # Non-critical.
+
+            # P1 Item 2 (Tier 6.3): Check which submit button was
+            # clicked. Default to save_continue so that pressing
+            # Enter in a quantity field preserves existing behavior.
+            action = request.form.get("action", "save_continue")
+
+            if action == "save_exit":
+                flash(
+                    "Equipment selections saved as draft.",
+                    "success",
+                )
+                return redirect(url_for("main.dashboard"))
+
+            flash("Hardware selections saved.", "success")
             return redirect(
                 url_for(
                     "requirements.select_software",
@@ -216,9 +230,9 @@ def select_software(position_id):
                 items=items,
                 user_id=current_user.id,
             )
-            flash("Software selections saved.", "success")
+
             # Tier 3 (#15): Mark position as 'draft' if not yet
-            # submitted — the user has started configuring.
+            # submitted -- the user has started configuring.
             try:
                 current_status = requirement_service.get_requirements_status(
                     position_id
@@ -231,6 +245,20 @@ def select_software(position_id):
                     )
             except ValueError:
                 pass  # Non-critical.
+
+            # P1 Item 2 (Tier 6.3): Check which submit button was
+            # clicked. Default to save_continue so that pressing
+            # Enter in a quantity field preserves existing behavior.
+            action = request.form.get("action", "save_continue")
+
+            if action == "save_exit":
+                flash(
+                    "Software selections saved as draft.",
+                    "success",
+                )
+                return redirect(url_for("main.dashboard"))
+
+            flash("Software selections saved.", "success")
             return redirect(
                 url_for(
                     "requirements.position_summary",
