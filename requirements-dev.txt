@@ -18,3 +18,7 @@ sqlfluff>=3.2,<4.0
 
 # -- Development utilities ------------------------------------------------
 flask-debugtoolbar>=0.14,<1.0
+
+# -- Dependency management ------------------------------------------------
+pip-audit>=2.7,<3.0
+pipdeptree>=2.23,<3.0
