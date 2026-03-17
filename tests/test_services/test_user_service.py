@@ -32,7 +32,7 @@ Run this file in isolation::
 """
 
 import json
-
+import time as _time
 import pytest
 
 from app.models.audit import AuditLog
@@ -44,7 +44,7 @@ from app.services import user_service
 # Local helper fixture for unique emails
 # =====================================================================
 
-_local_counter = 0
+_local_counter = int(_time.time() * 10) % 9000
 
 
 @pytest.fixture()

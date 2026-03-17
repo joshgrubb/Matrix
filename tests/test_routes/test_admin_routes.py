@@ -48,6 +48,7 @@ Run this file in isolation::
     pytest tests/test_routes/test_admin_routes.py -v
 """
 
+import time as _time
 import pytest
 
 from app.models.user import User, UserScope
@@ -58,7 +59,7 @@ from app.services import user_service
 # Local helper fixture for unique emails
 # =====================================================================
 
-_local_counter = 0
+_local_counter = int(_time.time() * 10) % 9000
 
 
 @pytest.fixture()

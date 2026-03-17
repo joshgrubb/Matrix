@@ -35,7 +35,7 @@ Run with coverage::
 """
 
 from decimal import Decimal
-
+import time as _time
 import pytest
 from sqlalchemy import text
 
@@ -57,7 +57,8 @@ from app.models.user import Role, User, UserScope
 # Counter for generating unique codes within a test session.
 # =====================================================================
 
-_unique_counter = 0
+
+_unique_counter = int(_time.time() * 10) % 9000
 
 
 def _next_unique_code(prefix: str) -> str:
@@ -130,6 +131,115 @@ def database(app):  # pylint: disable=redefined-outer-name
     Run the DDL script against PositionMatrix_Test before running tests.
     """
     yield _db
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _purge_stale_test_data(app, database):
+    """
+    Purge leftover test data from previous pytest runs.
+
+    Runs once at the beginning of the test session, before any
+    tests execute.  This guarantees a clean database even if a
+    prior run crashed or its per-test cleanup failed silently.
+
+    The DELETE statements mirror ``_cleanup_test_data`` but run
+    in session scope so they execute only once per invocation.
+    """
+    with app.app_context():
+        try:
+            _db.session.rollback()
+
+            cleanup_statements = [
+                # Audit log entries referencing test users.
+                """DELETE FROM audit.audit_log
+                   WHERE user_id IN (
+                       SELECT id FROM auth.[user]
+                       WHERE email LIKE '%@test.local'
+                   )""",
+                # Budget: requirement history for test positions.
+                """DELETE FROM budget.requirement_history
+                   WHERE position_id IN (
+                       SELECT id FROM org.position
+                       WHERE position_code LIKE '_TST_%'
+                   )""",
+                # Budget: cost histories for test hardware.
+                """DELETE FROM budget.hardware_cost_history
+                   WHERE hardware_id IN (
+                       SELECT id FROM equip.hardware
+                       WHERE name LIKE '_TST_%'
+                   )""",
+                # Budget: cost histories for test hardware types.
+                """DELETE FROM budget.hardware_type_cost_history
+                   WHERE hardware_type_id IN (
+                       SELECT id FROM equip.hardware_type
+                       WHERE type_name LIKE '_TST_%'
+                   )""",
+                # Budget: cost histories for test software.
+                """DELETE FROM budget.software_cost_history
+                   WHERE software_id IN (
+                       SELECT id FROM equip.software
+                       WHERE name LIKE '_TST_%'
+                   )""",
+                # Position hardware requirements for test positions.
+                """DELETE FROM equip.position_hardware
+                   WHERE position_id IN (
+                       SELECT id FROM org.position
+                       WHERE position_code LIKE '_TST_%'
+                   )""",
+                # Position software requirements for test positions.
+                """DELETE FROM equip.position_software
+                   WHERE position_id IN (
+                       SELECT id FROM org.position
+                       WHERE position_code LIKE '_TST_%'
+                   )""",
+                # Software coverage for test software.
+                """DELETE FROM equip.software_coverage
+                   WHERE software_id IN (
+                       SELECT id FROM equip.software
+                       WHERE name LIKE '_TST_%'
+                   )""",
+                # Employees created by tests.
+                """DELETE FROM org.employee
+                   WHERE employee_code LIKE '_TST_%'""",
+                # User scopes for test users.
+                """DELETE FROM auth.user_scope
+                   WHERE user_id IN (
+                       SELECT id FROM auth.[user]
+                       WHERE email LIKE '%@test.local'
+                   )""",
+                # Test users themselves.
+                """DELETE FROM auth.[user]
+                   WHERE email LIKE '%@test.local'""",
+                # Org tables (children before parents).
+                """DELETE FROM org.position
+                   WHERE position_code LIKE '_TST_%'""",
+                """DELETE FROM org.division
+                   WHERE division_code LIKE '_TST_%'""",
+                """DELETE FROM org.department
+                   WHERE department_code LIKE '_TST_%'""",
+                # Equipment catalog.
+                """DELETE FROM equip.hardware
+                   WHERE name LIKE '_TST_%'""",
+                """DELETE FROM equip.hardware_type
+                   WHERE type_name LIKE '_TST_%'""",
+                """DELETE FROM equip.software
+                   WHERE name LIKE '_TST_%'""",
+                """DELETE FROM equip.software_type
+                   WHERE type_name LIKE '_TST_%'""",
+            ]
+
+            for stmt in cleanup_statements:
+                _db.session.execute(text(stmt))
+
+            _db.session.commit()
+            _db.session.remove()
+
+        except Exception:  # pylint: disable=broad-except
+            _db.session.rollback()
+            _db.session.remove()
+
+    # All stale data is now gone; let the test session proceed.
+    yield
 
 
 # =====================================================================
@@ -230,6 +340,9 @@ def _cleanup_test_data(app):  # pylint: disable=redefined-outer-name
                    SELECT id FROM equip.software
                    WHERE name LIKE '_TST_%'
                )""",
+            # Employees created by tests (FK to position).
+            """DELETE FROM org.employee
+               WHERE employee_code LIKE '_TST_%'""",
             # User scopes for test users.
             """DELETE FROM auth.user_scope
                WHERE user_id IN (
@@ -263,7 +376,10 @@ def _cleanup_test_data(app):  # pylint: disable=redefined-outer-name
         _db.session.commit()
         _db.session.remove()
 
-    except Exception:  # pylint: disable=broad-except
+    except Exception as exc:  # pylint: disable=broad-except
+        import logging
+
+        logging.getLogger(__name__).warning("Test cleanup failed: %s", exc)
         _db.session.rollback()
         _db.session.remove()
 
