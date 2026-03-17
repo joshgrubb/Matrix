@@ -9,7 +9,7 @@
         <p>Synchronize organization data from NeoGov.</p>
     </div>
     <div>
-        <form method="POST" action="{{ url_for('admin.hr_sync_run') }}" class="d-inline">
+        <form method="POST" action="{{ url_for('admin.run_hr_sync') }}" class="d-inline">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="pm-btn pm-btn-primary pm-btn-sm"
                 data-confirm="Run a full HR sync now? This will update departments, divisions, and positions from NeoGov."
