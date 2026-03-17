@@ -34,6 +34,7 @@ Run with coverage::
     pytest --cov=app --cov-report=term-missing
 """
 
+import logging
 from decimal import Decimal
 import time as _time
 import pytest
@@ -133,6 +134,9 @@ def database(app):  # pylint: disable=redefined-outer-name
     yield _db
 
 
+_startup_logger = logging.getLogger("tests.startup_cleanup")
+
+
 @pytest.fixture(autouse=True, scope="session")
 def _purge_stale_test_data(app, database):
     """
@@ -142,101 +146,153 @@ def _purge_stale_test_data(app, database):
     tests execute.  This guarantees a clean database even if a
     prior run crashed or its per-test cleanup failed silently.
 
-    The DELETE statements mirror ``_cleanup_test_data`` but run
-    in session scope so they execute only once per invocation.
+    Each DELETE commits independently so one FK failure does not
+    roll back cleanup of unrelated tables.
     """
     with app.app_context():
-        try:
-            _db.session.rollback()
+        # Subquery aliases used in multiple statements below.
+        _test_users = "SELECT id FROM auth.[user] WHERE email LIKE '%@test.local'"
+        _test_positions = (
+            "SELECT id FROM org.position WHERE position_code LIKE '_TST_%'"
+        )
+        _test_divisions = (
+            "SELECT id FROM org.division WHERE division_code LIKE '_TST_%'"
+        )
+        _test_departments = (
+            "SELECT id FROM org.department WHERE department_code LIKE '_TST_%'"
+        )
+        _test_hardware = "SELECT id FROM equip.hardware WHERE name LIKE '_TST_%'"
+        _test_hardware_types = (
+            "SELECT id FROM equip.hardware_type WHERE type_name LIKE '_TST_%'"
+        )
+        _test_software = "SELECT id FROM equip.software WHERE name LIKE '_TST_%'"
+        _test_software_types = (
+            "SELECT id FROM equip.software_type WHERE type_name LIKE '_TST_%'"
+        )
 
-            cleanup_statements = [
-                # Audit log entries referencing test users.
-                """DELETE FROM audit.audit_log
-                   WHERE user_id IN (
-                       SELECT id FROM auth.[user]
-                       WHERE email LIKE '%@test.local'
-                   )""",
-                # Budget: requirement history for test positions.
-                """DELETE FROM budget.requirement_history
-                   WHERE position_id IN (
-                       SELECT id FROM org.position
-                       WHERE position_code LIKE '_TST_%'
-                   )""",
-                # Budget: cost histories for test hardware.
-                """DELETE FROM budget.hardware_cost_history
-                   WHERE hardware_id IN (
-                       SELECT id FROM equip.hardware
-                       WHERE name LIKE '_TST_%'
-                   )""",
-                # Budget: cost histories for test hardware types.
-                """DELETE FROM budget.hardware_type_cost_history
-                   WHERE hardware_type_id IN (
-                       SELECT id FROM equip.hardware_type
-                       WHERE type_name LIKE '_TST_%'
-                   )""",
-                # Budget: cost histories for test software.
-                """DELETE FROM budget.software_cost_history
-                   WHERE software_id IN (
-                       SELECT id FROM equip.software
-                       WHERE name LIKE '_TST_%'
-                   )""",
-                # Position hardware requirements for test positions.
-                """DELETE FROM equip.position_hardware
-                   WHERE position_id IN (
-                       SELECT id FROM org.position
-                       WHERE position_code LIKE '_TST_%'
-                   )""",
-                # Position software requirements for test positions.
-                """DELETE FROM equip.position_software
-                   WHERE position_id IN (
-                       SELECT id FROM org.position
-                       WHERE position_code LIKE '_TST_%'
-                   )""",
-                # Software coverage for test software.
-                """DELETE FROM equip.software_coverage
-                   WHERE software_id IN (
-                       SELECT id FROM equip.software
-                       WHERE name LIKE '_TST_%'
-                   )""",
-                # Employees created by tests.
-                """DELETE FROM org.employee
-                   WHERE employee_code LIKE '_TST_%'""",
-                # User scopes for test users.
-                """DELETE FROM auth.user_scope
-                   WHERE user_id IN (
-                       SELECT id FROM auth.[user]
-                       WHERE email LIKE '%@test.local'
-                   )""",
-                # Test users themselves.
-                """DELETE FROM auth.[user]
-                   WHERE email LIKE '%@test.local'""",
-                # Org tables (children before parents).
-                """DELETE FROM org.position
-                   WHERE position_code LIKE '_TST_%'""",
-                """DELETE FROM org.division
-                   WHERE division_code LIKE '_TST_%'""",
-                """DELETE FROM org.department
-                   WHERE department_code LIKE '_TST_%'""",
-                # Equipment catalog.
-                """DELETE FROM equip.hardware
-                   WHERE name LIKE '_TST_%'""",
-                """DELETE FROM equip.hardware_type
-                   WHERE type_name LIKE '_TST_%'""",
-                """DELETE FROM equip.software
-                   WHERE name LIKE '_TST_%'""",
-                """DELETE FROM equip.software_type
-                   WHERE type_name LIKE '_TST_%'""",
-            ]
+        cleanup_statements = [
+            (
+                "audit.audit_log",
+                f"DELETE FROM audit.audit_log" f" WHERE user_id IN ({_test_users})",
+            ),
+            (
+                "budget.requirement_history",
+                f"DELETE FROM budget.requirement_history"
+                f" WHERE position_id IN ({_test_positions})"
+                f"    OR changed_by IN ({_test_users})",
+            ),
+            (
+                "budget.cost_snapshot",
+                f"DELETE FROM budget.cost_snapshot"
+                f" WHERE created_by IN ({_test_users})",
+            ),
+            (
+                "budget.authorized_count_history",
+                f"DELETE FROM budget.authorized_count_history"
+                f" WHERE position_id IN ({_test_positions})"
+                f"    OR changed_by IN ({_test_users})",
+            ),
+            (
+                "budget.hardware_cost_history",
+                f"DELETE FROM budget.hardware_cost_history"
+                f" WHERE hardware_id IN ({_test_hardware})"
+                f"    OR changed_by IN ({_test_users})",
+            ),
+            (
+                "budget.hardware_type_cost_history",
+                f"DELETE FROM budget.hardware_type_cost_history"
+                f" WHERE hardware_type_id IN ({_test_hardware_types})"
+                f"    OR changed_by IN ({_test_users})",
+            ),
+            (
+                "budget.software_cost_history",
+                f"DELETE FROM budget.software_cost_history"
+                f" WHERE software_id IN ({_test_software})"
+                f"    OR changed_by IN ({_test_users})",
+            ),
+            (
+                "equip.position_hardware",
+                f"DELETE FROM equip.position_hardware"
+                f" WHERE position_id IN ({_test_positions})"
+                f"    OR hardware_id IN ({_test_hardware})",
+            ),
+            (
+                "equip.position_software",
+                f"DELETE FROM equip.position_software"
+                f" WHERE position_id IN ({_test_positions})"
+                f"    OR software_id IN ({_test_software})",
+            ),
+            (
+                "equip.software_coverage",
+                f"DELETE FROM equip.software_coverage"
+                f" WHERE software_id IN ({_test_software})",
+            ),
+            (
+                "auth.user_scope",
+                f"DELETE FROM auth.user_scope" f" WHERE user_id IN ({_test_users})",
+            ),
+            (
+                "org.employee",
+                f"DELETE FROM org.employee"
+                f" WHERE employee_code LIKE '_TST_%'"
+                f"    OR position_id IN ({_test_positions})",
+            ),
+            (
+                "auth.[user]",
+                "DELETE FROM auth.[user]" " WHERE email LIKE '%@test.local'",
+            ),
+            (
+                "equip.hardware",
+                f"DELETE FROM equip.hardware"
+                f" WHERE name LIKE '_TST_%'"
+                f"    OR hardware_type_id IN ({_test_hardware_types})",
+            ),
+            (
+                "equip.software",
+                f"DELETE FROM equip.software"
+                f" WHERE name LIKE '_TST_%'"
+                f"    OR software_type_id IN ({_test_software_types})",
+            ),
+            (
+                "org.position",
+                f"DELETE FROM org.position"
+                f" WHERE position_code LIKE '_TST_%'"
+                f"    OR division_id IN ({_test_divisions})",
+            ),
+            (
+                "org.division",
+                f"DELETE FROM org.division"
+                f" WHERE division_code LIKE '_TST_%'"
+                f"    OR department_id IN ({_test_departments})",
+            ),
+            (
+                "org.department",
+                "DELETE FROM org.department" " WHERE department_code LIKE '_TST_%'",
+            ),
+            (
+                "equip.hardware_type",
+                "DELETE FROM equip.hardware_type" " WHERE type_name LIKE '_TST_%'",
+            ),
+            (
+                "equip.software_type",
+                "DELETE FROM equip.software_type" " WHERE type_name LIKE '_TST_%'",
+            ),
+        ]
 
-            for stmt in cleanup_statements:
+        for table_name, stmt in cleanup_statements:
+            try:
+                _db.session.rollback()
                 _db.session.execute(text(stmt))
+                _db.session.commit()
+            except Exception as exc:  # pylint: disable=broad-except
+                _startup_logger.warning(
+                    "Startup cleanup of %s failed: %s",
+                    table_name,
+                    exc,
+                )
+                _db.session.rollback()
 
-            _db.session.commit()
-            _db.session.remove()
-
-        except Exception:  # pylint: disable=broad-except
-            _db.session.rollback()
-            _db.session.remove()
+        _db.session.remove()
 
     # All stale data is now gone; let the test session proceed.
     yield
@@ -245,6 +301,9 @@ def _purge_stale_test_data(app, database):
 # =====================================================================
 # Per-test cleanup (autouse, function-scoped)
 # =====================================================================
+
+
+_cleanup_logger = logging.getLogger("tests.cleanup")
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -256,6 +315,10 @@ def _cleanup_test_data(app):  # pylint: disable=redefined-outer-name
     FK-safe deletion order.  Identifies test data by:
         - Codes/names starting with ``_TST_`` or ``_tst_``
         - Email addresses ending with ``@test.local``
+        - Parent FK references to any of the above
+
+    Each DELETE is committed independently so that a single FK
+    failure does not roll back cleanup of unrelated tables.
 
     IMPORTANT -- Flask-Login ``g._login_user`` cache:
 
@@ -265,123 +328,166 @@ def _cleanup_test_data(app):  # pylint: disable=redefined-outer-name
     Because the app context persists, this cache survives across test
     boundaries.  After cleanup detaches the old User from the session,
     subsequent tests find a stale, detached User in the cache instead
-    of calling the ``request_loader``.  The symptom is a
-    ``DetachedInstanceError`` on ``current_user.is_active`` in every
-    route test after the first.
+    of calling the ``request_loader``.
 
     The fix: clear ``g._login_user`` before each test so Flask-Login
     is forced to call the ``request_loader`` and load a fresh User.
     """
     # -- Setup: clear Flask-Login's cached user from the persistent g. --
-    # Without this, the stale User object from the previous test's
-    # request remains in g._login_user and is returned by the
-    # current_user proxy without ever hitting the request_loader.
     from flask import g as flask_g  # pylint: disable=import-outside-toplevel
 
     flask_g.pop("_login_user", None)
 
     yield
 
-    try:
-        # Clear Flask-Login's cached user again after the test so the
-        # detached User object does not leak into the next test's
-        # fixture setup phase (which may access current_user via
-        # logging or middleware).
-        flask_g.pop("_login_user", None)
+    # -- Teardown: delete test data in FK-safe order. --------------------
+    flask_g.pop("_login_user", None)
 
-        _db.session.rollback()
+    # Subquery aliases used in multiple statements below.
+    _test_users = "SELECT id FROM auth.[user] WHERE email LIKE '%@test.local'"
+    _test_positions = "SELECT id FROM org.position WHERE position_code LIKE '_TST_%'"
+    _test_divisions = "SELECT id FROM org.division WHERE division_code LIKE '_TST_%'"
+    _test_departments = (
+        "SELECT id FROM org.department WHERE department_code LIKE '_TST_%'"
+    )
+    _test_hardware = "SELECT id FROM equip.hardware WHERE name LIKE '_TST_%'"
+    _test_hardware_types = (
+        "SELECT id FROM equip.hardware_type WHERE type_name LIKE '_TST_%'"
+    )
+    _test_software = "SELECT id FROM equip.software WHERE name LIKE '_TST_%'"
+    _test_software_types = (
+        "SELECT id FROM equip.software_type WHERE type_name LIKE '_TST_%'"
+    )
 
-        cleanup_statements = [
-            # Audit log entries referencing test users.
-            """DELETE FROM audit.audit_log
-               WHERE user_id IN (
-                   SELECT id FROM auth.[user]
-                   WHERE email LIKE '%@test.local'
-               )""",
-            # Budget: requirement history for test positions.
-            """DELETE FROM budget.requirement_history
-               WHERE position_id IN (
-                   SELECT id FROM org.position
-                   WHERE position_code LIKE '_TST_%'
-               )""",
-            # Budget: cost histories for test hardware.
-            """DELETE FROM budget.hardware_cost_history
-               WHERE hardware_id IN (
-                   SELECT id FROM equip.hardware
-                   WHERE name LIKE '_TST_%'
-               )""",
-            # Budget: cost histories for test hardware types.
-            """DELETE FROM budget.hardware_type_cost_history
-               WHERE hardware_type_id IN (
-                   SELECT id FROM equip.hardware_type
-                   WHERE type_name LIKE '_TST_%'
-               )""",
-            # Budget: cost histories for test software.
-            """DELETE FROM budget.software_cost_history
-               WHERE software_id IN (
-                   SELECT id FROM equip.software
-                   WHERE name LIKE '_TST_%'
-               )""",
-            # Position hardware requirements for test positions.
-            """DELETE FROM equip.position_hardware
-               WHERE position_id IN (
-                   SELECT id FROM org.position
-                   WHERE position_code LIKE '_TST_%'
-               )""",
-            # Position software requirements for test positions.
-            """DELETE FROM equip.position_software
-               WHERE position_id IN (
-                   SELECT id FROM org.position
-                   WHERE position_code LIKE '_TST_%'
-               )""",
-            # Software coverage for test software.
-            """DELETE FROM equip.software_coverage
-               WHERE software_id IN (
-                   SELECT id FROM equip.software
-                   WHERE name LIKE '_TST_%'
-               )""",
-            # Employees created by tests (FK to position).
-            """DELETE FROM org.employee
-               WHERE employee_code LIKE '_TST_%'""",
-            # User scopes for test users.
-            """DELETE FROM auth.user_scope
-               WHERE user_id IN (
-                   SELECT id FROM auth.[user]
-                   WHERE email LIKE '%@test.local'
-               )""",
-            # Test users themselves.
-            """DELETE FROM auth.[user]
-               WHERE email LIKE '%@test.local'""",
-            # Org tables (children before parents).
-            """DELETE FROM org.position
-               WHERE position_code LIKE '_TST_%'""",
-            """DELETE FROM org.division
-               WHERE division_code LIKE '_TST_%'""",
-            """DELETE FROM org.department
-               WHERE department_code LIKE '_TST_%'""",
-            # Equipment catalog.
-            """DELETE FROM equip.hardware
-               WHERE name LIKE '_TST_%'""",
-            """DELETE FROM equip.hardware_type
-               WHERE type_name LIKE '_TST_%'""",
-            """DELETE FROM equip.software
-               WHERE name LIKE '_TST_%'""",
-            """DELETE FROM equip.software_type
-               WHERE type_name LIKE '_TST_%'""",
-        ]
+    # FK-safe deletion order: leaf tables first, root tables last.
+    # OR clauses catch rows linked by parent FK even if the child's
+    # own name does not match the _TST_% pattern (orphan recovery).
+    cleanup_statements = [
+        # ---- Audit (leaf) ----
+        (
+            "audit.audit_log",
+            f"DELETE FROM audit.audit_log" f" WHERE user_id IN ({_test_users})",
+        ),
+        # ---- Budget (leaf -- all reference org.position or auth.user) ----
+        (
+            "budget.requirement_history",
+            f"DELETE FROM budget.requirement_history"
+            f" WHERE position_id IN ({_test_positions})"
+            f"    OR changed_by IN ({_test_users})",
+        ),
+        (
+            "budget.cost_snapshot",
+            f"DELETE FROM budget.cost_snapshot" f" WHERE created_by IN ({_test_users})",
+        ),
+        (
+            "budget.authorized_count_history",
+            f"DELETE FROM budget.authorized_count_history"
+            f" WHERE position_id IN ({_test_positions})"
+            f"    OR changed_by IN ({_test_users})",
+        ),
+        (
+            "budget.hardware_cost_history",
+            f"DELETE FROM budget.hardware_cost_history"
+            f" WHERE hardware_id IN ({_test_hardware})"
+            f"    OR changed_by IN ({_test_users})",
+        ),
+        (
+            "budget.hardware_type_cost_history",
+            f"DELETE FROM budget.hardware_type_cost_history"
+            f" WHERE hardware_type_id IN ({_test_hardware_types})"
+            f"    OR changed_by IN ({_test_users})",
+        ),
+        (
+            "budget.software_cost_history",
+            f"DELETE FROM budget.software_cost_history"
+            f" WHERE software_id IN ({_test_software})"
+            f"    OR changed_by IN ({_test_users})",
+        ),
+        # ---- Equip junction tables ----
+        (
+            "equip.position_hardware",
+            f"DELETE FROM equip.position_hardware"
+            f" WHERE position_id IN ({_test_positions})"
+            f"    OR hardware_id IN ({_test_hardware})",
+        ),
+        (
+            "equip.position_software",
+            f"DELETE FROM equip.position_software"
+            f" WHERE position_id IN ({_test_positions})"
+            f"    OR software_id IN ({_test_software})",
+        ),
+        (
+            "equip.software_coverage",
+            f"DELETE FROM equip.software_coverage"
+            f" WHERE software_id IN ({_test_software})",
+        ),
+        # ---- Auth scopes ----
+        (
+            "auth.user_scope",
+            f"DELETE FROM auth.user_scope" f" WHERE user_id IN ({_test_users})",
+        ),
+        # ---- Org employees (must precede org.position) ----
+        (
+            "org.employee",
+            f"DELETE FROM org.employee"
+            f" WHERE employee_code LIKE '_TST_%'"
+            f"    OR position_id IN ({_test_positions})",
+        ),
+        # ---- Auth users ----
+        ("auth.[user]", "DELETE FROM auth.[user]" " WHERE email LIKE '%@test.local'"),
+        # ---- Equip catalog items (must precede type tables) ----
+        (
+            "equip.hardware",
+            f"DELETE FROM equip.hardware"
+            f" WHERE name LIKE '_TST_%'"
+            f"    OR hardware_type_id IN ({_test_hardware_types})",
+        ),
+        (
+            "equip.software",
+            f"DELETE FROM equip.software"
+            f" WHERE name LIKE '_TST_%'"
+            f"    OR software_type_id IN ({_test_software_types})",
+        ),
+        # ---- Org hierarchy (children before parents) ----
+        (
+            "org.position",
+            f"DELETE FROM org.position"
+            f" WHERE position_code LIKE '_TST_%'"
+            f"    OR division_id IN ({_test_divisions})",
+        ),
+        (
+            "org.division",
+            f"DELETE FROM org.division"
+            f" WHERE division_code LIKE '_TST_%'"
+            f"    OR department_id IN ({_test_departments})",
+        ),
+        (
+            "org.department",
+            "DELETE FROM org.department" " WHERE department_code LIKE '_TST_%'",
+        ),
+        # ---- Equip type tables (root -- deleted last) ----
+        (
+            "equip.hardware_type",
+            "DELETE FROM equip.hardware_type" " WHERE type_name LIKE '_TST_%'",
+        ),
+        (
+            "equip.software_type",
+            "DELETE FROM equip.software_type" " WHERE type_name LIKE '_TST_%'",
+        ),
+    ]
 
-        for stmt in cleanup_statements:
+    # Execute each DELETE in its own mini-transaction so that a
+    # single FK failure does not roll back cleanup of other tables.
+    for table_name, stmt in cleanup_statements:
+        try:
+            _db.session.rollback()  # Clear any prior broken state.
             _db.session.execute(text(stmt))
+            _db.session.commit()
+        except Exception as exc:  # pylint: disable=broad-except
+            _cleanup_logger.warning("Cleanup of %s failed: %s", table_name, exc)
+            _db.session.rollback()
 
-        _db.session.commit()
-        _db.session.remove()
-
-    except Exception as exc:  # pylint: disable=broad-except
-        import logging
-
-        logging.getLogger(__name__).warning("Test cleanup failed: %s", exc)
-        _db.session.rollback()
-        _db.session.remove()
+    _db.session.remove()
 
 
 # =====================================================================
