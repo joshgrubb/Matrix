@@ -146,7 +146,7 @@ def update_hardware_type(
     # None or 0 means "unlimited". Any positive int is a real limit.
     if max_selections != -1:
         hw_type.max_selections = max_selections
-    hw_type.updated_at = db.func.sysutcdatetime()
+    hw_type.updated_at = datetime.now(timezone.utc)
 
     if cost_changed:
         _close_hardware_type_cost_history(hw_type)
@@ -186,7 +186,7 @@ def deactivate_hardware_type(
         raise ValueError(f"Hardware type ID {hw_type_id} not found.")
 
     hw_type.is_active = False
-    hw_type.updated_at = db.func.sysutcdatetime()
+    hw_type.updated_at = datetime.now(timezone.utc)
 
     audit_service.log_change(
         user_id=user_id,
@@ -222,7 +222,7 @@ def _close_hardware_type_cost_history(hw_type: HardwareType) -> None:
         hardware_type_id=hw_type.id, end_date=None
     ).first()
     if current:
-        current.end_date = db.func.sysutcdatetime()
+        current.end_date = datetime.now(timezone.utc)
 
 
 # =========================================================================
@@ -347,7 +347,7 @@ def update_hardware(
         hw.estimated_cost = estimated_cost
     if description is not None:
         hw.description = description
-    hw.updated_at = db.func.sysutcdatetime()
+    hw.updated_at = datetime.now(timezone.utc)
 
     if cost_changed:
         _close_hardware_cost_history(hw)
@@ -387,7 +387,7 @@ def deactivate_hardware(
         raise ValueError(f"Hardware ID {hardware_id} not found.")
 
     hw.is_active = False
-    hw.updated_at = db.func.sysutcdatetime()
+    hw.updated_at = datetime.now(timezone.utc)
 
     audit_service.log_change(
         user_id=user_id,
@@ -423,7 +423,7 @@ def _close_hardware_cost_history(hw: Hardware) -> None:
         hardware_id=hw.id, end_date=None
     ).first()
     if current:
-        current.end_date = db.func.sysutcdatetime()
+        current.end_date = datetime.now(timezone.utc)
 
 
 # =========================================================================
@@ -480,7 +480,7 @@ def update_software_type(
         sw_type.type_name = type_name
     if description is not None:
         sw_type.description = description
-    sw_type.updated_at = db.func.sysutcdatetime()
+    sw_type.updated_at = datetime.now(timezone.utc)
 
     db.session.commit()
     return sw_type
@@ -512,7 +512,7 @@ def deactivate_software_type(
         raise ValueError(f"Software type ID {sw_type_id} not found.")
 
     sw_type.is_active = False
-    sw_type.updated_at = db.func.sysutcdatetime()
+    sw_type.updated_at = datetime.now(timezone.utc)
 
     audit_service.log_change(
         user_id=user_id,
@@ -608,7 +608,7 @@ def update_software_family(
         family.family_name = family_name
     if description is not None:
         family.description = description
-    family.updated_at = db.func.sysutcdatetime()
+    family.updated_at = datetime.now(timezone.utc)
 
     audit_service.log_change(
         user_id=user_id,
@@ -652,7 +652,7 @@ def deactivate_software_family(
         raise ValueError(f"Software family ID {family_id} not found.")
 
     family.is_active = False
-    family.updated_at = db.func.sysutcdatetime()
+    family.updated_at = datetime.now(timezone.utc)
 
     audit_service.log_change(
         user_id=user_id,
@@ -797,7 +797,7 @@ def update_software(
     for field_name, value in kwargs.items():
         if hasattr(sw, field_name):
             setattr(sw, field_name, value)
-    sw.updated_at = db.func.sysutcdatetime()
+    sw.updated_at = datetime.now(timezone.utc)
 
     if cost_changed:
         _close_software_cost_history(sw)
@@ -838,7 +838,7 @@ def deactivate_software(
         raise ValueError(f"Software ID {software_id} not found.")
 
     sw.is_active = False
-    sw.updated_at = db.func.sysutcdatetime()
+    sw.updated_at = datetime.now(timezone.utc)
 
     audit_service.log_change(
         user_id=user_id,
@@ -875,7 +875,7 @@ def _close_software_cost_history(sw: Software) -> None:
         software_id=sw.id, end_date=None
     ).first()
     if current:
-        current.end_date = db.func.sysutcdatetime()
+        current.end_date = datetime.now(timezone.utc)
 
 
 # =========================================================================

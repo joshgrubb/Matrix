@@ -133,7 +133,7 @@ def provision_user(
     if role is None:
         raise ValueError(f"Role '{role_name}' not found.")
 
-    now = db.func.sysutcdatetime()
+    now = datetime.now(timezone.utc)
 
     user = User(
         email=email,
@@ -375,7 +375,7 @@ def record_login(user: User) -> None:
     Update the user's last_login timestamp and record first_login_at
     if this is their first login.
     """
-    now = db.func.sysutcdatetime()
+    now = datetime.now(timezone.utc)
     if user.first_login_at is None:
         user.first_login_at = now
     user.last_login = now
