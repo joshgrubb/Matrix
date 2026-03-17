@@ -193,7 +193,7 @@ def _sync_departments(
                 if existing.department_name != new_name or not existing.is_active:
                     existing.department_name = new_name
                     existing.is_active = True
-                    existing.updated_at = datetime.now(timezone.utc)
+                    existing.updated_at = db.func.sysutcdatetime()
                     stats["updated"] += 1
                     logger.debug("Updated department: %s", code)
 
@@ -210,7 +210,7 @@ def _sync_departments(
         for dept in active_local:
             if dept.department_code not in api_codes:
                 dept.is_active = False
-                dept.updated_at = datetime.now(timezone.utc)
+                dept.updated_at = db.func.sysutcdatetime()
                 stats["deactivated"] += 1
                 logger.debug("Deactivated department: %s", dept.department_code)
     else:
@@ -288,7 +288,7 @@ def _sync_divisions(
                     existing.division_name = new_name
                     existing.department_id = department.id
                     existing.is_active = True
-                    existing.updated_at = datetime.now(timezone.utc)
+                    existing.updated_at = db.func.sysutcdatetime()
                     stats["updated"] += 1
                     logger.debug("Updated division: %s", code)
 
@@ -303,7 +303,7 @@ def _sync_divisions(
         for div in active_local:
             if div.division_code not in api_codes:
                 div.is_active = False
-                div.updated_at = datetime.now(timezone.utc)
+                div.updated_at = db.func.sysutcdatetime()
                 stats["deactivated"] += 1
                 logger.debug("Deactivated division: %s", div.division_code)
     else:
@@ -385,7 +385,7 @@ def _sync_positions(
                     existing.division_id = division.id
                     existing.authorized_count = auth_count
                     existing.is_active = True
-                    existing.updated_at = datetime.now(timezone.utc)
+                    existing.updated_at = db.func.sysutcdatetime()
                     stats["updated"] += 1
                     logger.debug("Updated position: %s", code)
 
@@ -400,7 +400,7 @@ def _sync_positions(
         for pos in active_local:
             if pos.position_code not in api_codes:
                 pos.is_active = False
-                pos.updated_at = datetime.now(timezone.utc)
+                pos.updated_at = db.func.sysutcdatetime()
                 stats["deactivated"] += 1
                 logger.debug("Deactivated position: %s", pos.position_code)
     else:
@@ -514,7 +514,7 @@ def _sync_employees(
                 #         → deactivate the local record.
                 if not api_is_active and existing.is_active:
                     existing.is_active = False
-                    existing.updated_at = datetime.now(timezone.utc)
+                    existing.updated_at = db.func.sysutcdatetime()
                     stats["deactivated"] += 1
                     logger.info(
                         "Deactivated employee %s (%s %s) — "
@@ -550,7 +550,7 @@ def _sync_employees(
                     if position is not None:
                         existing.position_id = position.id
                     existing.is_active = True
-                    existing.updated_at = datetime.now(timezone.utc)
+                    existing.updated_at = db.func.sysutcdatetime()
                     stats["updated"] += 1
 
         except Exception as exc:  # pylint: disable=broad-exception-caught
@@ -609,7 +609,7 @@ def _recalculate_filled_counts() -> dict:
 
         if pos.filled_count != new_count:
             pos.filled_count = new_count
-            pos.updated_at = datetime.now(timezone.utc)
+            pos.updated_at = db.func.sysutcdatetime()
             stats["positions_updated"] += 1
 
     logger.info(
@@ -778,7 +778,7 @@ def _provision_users(user_id: int | None) -> dict:
                 role_id=read_only_role.id,
                 employee_id=emp.id,
                 provisioned_by=user_id,
-                provisioned_at=datetime.now(timezone.utc),
+                provisioned_at=db.func.sysutcdatetime(),
             )
             db.session.add(new_user)
             # Flush to get the auto-generated user ID for the scope
@@ -851,7 +851,7 @@ def _provision_users(user_id: int | None) -> dict:
             ).first()
             if linked_user is not None:
                 linked_user.is_active = False
-                linked_user.updated_at = datetime.now(timezone.utc)
+                linked_user.updated_at = db.func.sysutcdatetime()
 
                 audit_service.log_change(
                     user_id=user_id,
@@ -906,7 +906,7 @@ def _create_sync_log(sync_type: str, user_id: int | None) -> HRSyncLog:
         triggered_by=user_id,
         sync_type=sync_type,
         status="started",
-        started_at=datetime.now(timezone.utc),
+        started_at=db.func.sysutcdatetime(),
     )
     db.session.add(sync_log)
     # This commit is intentional.  The sync_log must be persisted
@@ -927,7 +927,7 @@ def _complete_sync_log(sync_log: HRSyncLog, stats: dict) -> None:
         migration in ``migrations/versions/`` to alter them to INT.
     """
     sync_log.status = "completed"
-    sync_log.completed_at = datetime.now(timezone.utc)
+    sync_log.completed_at = db.func.sysutcdatetime()
     sync_log.records_processed = stats["processed"]
     sync_log.records_created = stats["created"]
     sync_log.records_updated = stats["updated"]
@@ -942,7 +942,7 @@ def _fail_sync_log(sync_log: HRSyncLog, error_message: str) -> None:
     sync_log.status = "failed"
     # Truncate for NVARCHAR(MAX) safety.
     sync_log.error_message = error_message[:4000]
-    sync_log.completed_at = datetime.now(timezone.utc)
+    sync_log.completed_at = db.func.sysutcdatetime()
     # This commit is intentional.  _fail_sync_log runs AFTER
     # db.session.rollback() in the except block of run_full_sync.
     # The sync_log row was committed by _create_sync_log before the

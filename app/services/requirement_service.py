@@ -158,7 +158,7 @@ def update_hardware_requirement(
         req.quantity = quantity
     if notes is not None:
         req.notes = notes
-    req.updated_at = datetime.now(timezone.utc)
+    req.updated_at = db.func.sysutcdatetime()
 
     _record_requirement_history(
         position_id=req.position_id,
@@ -347,7 +347,7 @@ def update_software_requirement(
         req.quantity = quantity
     if notes is not None:
         req.notes = notes
-    req.updated_at = datetime.now(timezone.utc)
+    req.updated_at = db.func.sysutcdatetime()
 
     _record_requirement_history(
         position_id=req.position_id,
@@ -814,7 +814,7 @@ def update_requirements_status(
         return
 
     position.requirements_status = status
-    position.updated_at = datetime.now(timezone.utc)
+    position.updated_at = db.func.sysutcdatetime()
 
     audit_service.log_change(
         user_id=user_id,
