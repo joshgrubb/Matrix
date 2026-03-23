@@ -1,9 +1,17 @@
 """
-Auth service — MSAL (Microsoft Authentication Library) integration.
+Auth service -- MSAL (Microsoft Authentication Library) integration.
 
-Handles OAuth2/OIDC flow with Entra ID: building auth URLs, exchanging
-authorization codes for tokens, extracting user identity, and
-auto-provisioning new users on first login.
+Handles OAuth2/OIDC flow with Entra ID: initiating the authorization
+code flow, completing the token exchange, extracting user identity,
+and auto-provisioning new users on first login.
+
+MSAL API migration (2026-03-23):
+    Replaced the deprecated ``get_authorization_request_url`` /
+    ``acquire_token_by_authorization_code`` pair with the modern
+    ``initiate_auth_code_flow`` / ``acquire_token_by_auth_code_flow``
+    pair.  The new API handles CSRF state validation, nonce
+    verification, and optional PKCE internally, removing the need
+    for manual state management in the route layer.
 """
 
 import logging
@@ -34,45 +42,82 @@ def _build_msal_app(cache=None) -> msal.ConfidentialClientApplication:
     )
 
 
-def get_auth_url(state: str | None = None) -> str:
+# -- OAuth2 authorization code flow ---------------------------------------
+
+
+def initiate_auth_flow(state: str | None = None) -> str:
     """
-    Generate the Microsoft login URL for OAuth2 authorization code flow.
+    Start the OAuth2 authorization code flow.
+
+    Creates an auth code flow dict via MSAL's
+    ``initiate_auth_code_flow()`` and stores it in the Flask session.
+    The flow dict contains MSAL's internal state token, nonce, and
+    (when supported) a PKCE code challenge.  It is consumed by
+    ``complete_auth_flow()`` after Microsoft redirects back.
 
     Args:
-        state: Optional CSRF state parameter to include in the redirect.
+        state: Optional CSRF state value forwarded to Microsoft.
+               MSAL embeds this in the flow dict and validates it
+               automatically during ``complete_auth_flow()``.
 
     Returns:
-        The full Microsoft authorization URL the user should be
-        redirected to.
+        The Microsoft authorization URL to redirect the user to.
     """
     app = _build_msal_app()
-    auth_url = app.get_authorization_request_url(
+    flow = app.initiate_auth_code_flow(
         scopes=current_app.config["AZURE_SCOPES"],
         redirect_uri=current_app.config["AZURE_REDIRECT_URI"],
         state=state,
     )
-    return auth_url
+
+    if "error" in flow:
+        # initiate_auth_code_flow can fail if the authority or client
+        # config is invalid.  Surface a clear error instead of
+        # redirecting to a broken URL.
+        error_desc = flow.get("error_description", flow["error"])
+        logger.error("Failed to initiate auth flow: %s", error_desc)
+        raise ValueError(f"Could not start login: {error_desc}")
+
+    # Store the full flow dict so complete_auth_flow() can retrieve it.
+    session["auth_code_flow"] = flow
+
+    return flow["auth_uri"]
 
 
-def acquire_token_by_code(auth_code: str) -> dict:
+def complete_auth_flow(auth_response: dict) -> dict:
     """
-    Exchange an authorization code for access and ID tokens.
+    Complete the OAuth2 authorization code flow.
+
+    Retrieves the flow state from the Flask session and passes it
+    along with Microsoft's redirect parameters to MSAL's
+    ``acquire_token_by_auth_code_flow()``.  MSAL validates the state
+    and nonce internally, then exchanges the authorization code for
+    access and ID tokens.
 
     Args:
-        auth_code: The authorization code from Microsoft's redirect.
+        auth_response: The query parameters from Microsoft's redirect,
+                       typically ``dict(request.args)``.
 
     Returns:
         The MSAL token response dict containing ``id_token_claims``,
         ``access_token``, etc.
 
     Raises:
-        ValueError: If the token exchange fails.
+        ValueError: If the flow state is missing from the session or
+                    the token exchange fails (including state mismatch,
+                    expired code, or invalid grant).
     """
+    flow = session.pop("auth_code_flow", None)
+    if flow is None:
+        raise ValueError(
+            "Authentication flow state not found in session. "
+            "Please start the login process again."
+        )
+
     app = _build_msal_app()
-    result = app.acquire_token_by_authorization_code(
-        code=auth_code,
-        scopes=current_app.config["AZURE_SCOPES"],
-        redirect_uri=current_app.config["AZURE_REDIRECT_URI"],
+    result = app.acquire_token_by_auth_code_flow(
+        auth_code_flow=flow,
+        auth_response=auth_response,
     )
 
     if "error" in result:
@@ -81,6 +126,9 @@ def acquire_token_by_code(auth_code: str) -> dict:
         raise ValueError(f"Authentication failed: {error_desc}")
 
     return result
+
+
+# -- Login processing ------------------------------------------------------
 
 
 def process_login(token_result: dict):
@@ -92,7 +140,7 @@ def process_login(token_result: dict):
     returns the User object for Flask-Login.
 
     Args:
-        token_result: The dict returned by ``acquire_token_by_code``.
+        token_result: The dict returned by ``complete_auth_flow``.
 
     Returns:
         The User model instance (existing or newly created).
@@ -109,9 +157,7 @@ def process_login(token_result: dict):
     last_name = claims.get("family_name", "")
 
     if not entra_object_id or not email:
-        raise ValueError(
-            "ID token missing required claims (oid, preferred_username)."
-        )
+        raise ValueError("ID token missing required claims (oid, preferred_username).")
 
     # Look up existing user by Entra object ID.
     user = user_service.get_user_by_entra_id(entra_object_id)
@@ -152,5 +198,5 @@ def process_login(token_result: dict):
 
 def clear_session() -> None:
     """Remove application-specific keys from the Flask session on logout."""
-    for key in ("user_id", "user_email", "user_role", "_flashes"):
+    for key in ("user_id", "user_email", "user_role", "auth_code_flow", "_flashes"):
         session.pop(key, None)

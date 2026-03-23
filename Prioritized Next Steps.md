@@ -11,9 +11,9 @@ LOE: 2 to 3 hours. LOR: 4. The strategy lists 13 tests. While test_scope_isolati
 LOE: 2 to 3 hours. LOR: 3. The strategy lists 13 tests for hardware/software CRUD, cost history tracking, and coverage management. Equipment catalog integrity directly affects cost calculations. If a cost history record fails to close properly when a price changes, the CIO could see stale numbers.
 * [X] ~~*Rank 5: Write tests/test_services/test_audit_service.py*~~ [2026-03-23]
 LOE: 1.5 to 2 hours. LOR: 3. The strategy lists 9 tests. Audit logging is exercised indirectly by the admin route tests (the test_audit_log_page_shows_entries test proves a CREATE entry appears), but the audit service itself (IP capture, previous/new value serialization, pagination, filtering) is untested. If the CIO asks "how do we know who changed what," having audit service tests backing the answer is valuable.
-* [ ] Rank 6: Write tests/test_decorators/test_role_required.py
+* [X] ~~*Rank 6: Write tests/test_decorators/test_role_required.py*~~ [2026-03-23]
 LOE: 1 to 1.5 hours. LOR: 2. The strategy lists 10 isolated decorator tests. This is substantially mitigated by test_scope_isolation.py, which tests the decorators at the route integration level. The incremental value is catching decorator-internal edge cases (like a decorator returning 500 instead of 403 on an unexpected input). If time is tight, this can be deferred.
-* [ ] Rank 7: Write tests/test_routes/test_auth_routes.py
+* [X] ~~*Rank 7: Write tests/test_routes/test_auth_routes.py*~~ [2026-03-23]
 LOE: 2 hours. LOR: 2. The strategy lists 9 tests. Login/logout failures during a demo are embarrassing but unlikely if dev-login is used. The highest-value subset is test_dev_login_works_in_testing_mode and test_logout_clears_session, which you could write in 30 minutes as a stopgap.
 * [ ] Rank 8: Write tests/test_services/test_export_service.py
 LOE: 1.5 hours. LOR: 2. The strategy lists 6 tests. If you write test_reports_routes.py (Rank 2), you get route-level export coverage. These service-level tests add column/value verification on the actual CSV/Excel output, which is useful but lower marginal value.

@@ -1,9 +1,17 @@
 """
-Routes for the auth blueprint — login, logout, and OAuth2 callback.
+Routes for the auth blueprint -- login, logout, and OAuth2 callback.
 
 The login flow redirects to Microsoft Entra ID for authentication.
-After successful auth, the callback route exchanges the authorization
-code for tokens and logs the user in via Flask-Login.
+After successful auth, the callback route completes the authorization
+code flow and logs the user in via Flask-Login.
+
+MSAL API migration (2026-03-23):
+    The login route now calls ``auth_service.initiate_auth_flow()``
+    which uses MSAL's ``initiate_auth_code_flow()`` internally.  The
+    callback route calls ``auth_service.complete_auth_flow()`` which
+    uses ``acquire_token_by_auth_code_flow()``.  MSAL handles CSRF
+    state validation, nonce verification, and code exchange in a
+    single call, so the manual state/code checks have been removed.
 
 Development-only routes (``/dev-login``, ``/dev-login-picker``) are
 available when ``FLASK_ENV=development`` (i.e., ``app.debug`` is True).
@@ -34,19 +42,25 @@ def login():
     Initiate the OAuth2 login flow.
 
     If the user is already authenticated, redirect to the dashboard.
-    Otherwise, generate a CSRF state token and redirect to the
-    Microsoft login page.
+    Otherwise, start the MSAL auth code flow (which stores the flow
+    state in the session) and redirect to the Microsoft login page.
     """
     if current_user.is_authenticated:
         return redirect(url_for("main.dashboard"))
 
-    # Generate a random state token to prevent CSRF.
+    # Generate a random state token for CSRF protection.
+    # MSAL embeds this in the flow dict and validates it automatically
+    # when complete_auth_flow() is called in the callback.
     state = str(uuid.uuid4())
-    session["oauth_state"] = state
 
-    # Build the Microsoft authorization URL.
-    auth_url = auth_service.get_auth_url(state=state)
-    return redirect(auth_url)
+    try:
+        auth_url = auth_service.initiate_auth_flow(state=state)
+        return redirect(auth_url)
+    except ValueError as exc:
+        # initiate_auth_flow raises ValueError if the MSAL app config
+        # is invalid (e.g., bad authority URL or missing client ID).
+        flash(str(exc), "danger")
+        return redirect(url_for("auth.login_page"))
 
 
 @bp.route("/callback")
@@ -54,28 +68,27 @@ def callback():
     """
     Handle the OAuth2 redirect from Microsoft Entra ID.
 
-    Validates the state parameter, exchanges the authorization code
-    for tokens, processes the login, and redirects to the dashboard.
+    Passes the full query string to ``auth_service.complete_auth_flow()``,
+    which retrieves the stored flow state from the session, validates
+    the CSRF state parameter, exchanges the authorization code for
+    tokens, and returns the token result.  All validation (state
+    mismatch, missing code, expired grant) is handled by MSAL internally
+    and surfaced as a ``ValueError``.
     """
-    # Verify the CSRF state token.
-    if request.args.get("state") != session.pop("oauth_state", None):
-        flash("Authentication failed: invalid state parameter.", "danger")
-        return redirect(url_for("auth.login_page"))
-
-    # Check for errors from Microsoft.
+    # Check for errors from Microsoft before attempting the exchange.
+    # Microsoft appends ``error`` and ``error_description`` to the
+    # redirect URL when the user cancels or the tenant rejects the
+    # request.  Handling this early gives the user a cleaner message
+    # than the generic MSAL error path.
     if "error" in request.args:
         error_desc = request.args.get("error_description", "Unknown error")
         flash(f"Authentication failed: {error_desc}", "danger")
-        return redirect(url_for("auth.login_page"))
-
-    # Exchange the authorization code for tokens.
-    auth_code = request.args.get("code")
-    if not auth_code:
-        flash("Authentication failed: no authorization code received.", "danger")
+        # Pop the flow from the session so it does not linger.
+        session.pop("auth_code_flow", None)
         return redirect(url_for("auth.login_page"))
 
     try:
-        token_result = auth_service.acquire_token_by_code(auth_code)
+        token_result = auth_service.complete_auth_flow(dict(request.args))
         user = auth_service.process_login(token_result)
         login_user(user)
         flash(f"Welcome, {user.full_name}!", "success")
@@ -138,10 +151,10 @@ def dev_login():
 
     Examples::
 
-        /auth/dev-login                    → first active admin
-        /auth/dev-login?role=manager       → first active manager
-        /auth/dev-login?role=read_only     → first active read-only user
-        /auth/dev-login?user_id=7          → user with id=7
+        /auth/dev-login                    -> first active admin
+        /auth/dev-login?role=manager       -> first active manager
+        /auth/dev-login?role=read_only     -> first active read-only user
+        /auth/dev-login?user_id=7          -> user with id=7
 
     This route is only available when ``FLASK_ENV=development``.
     """
@@ -158,7 +171,7 @@ def dev_login():
     role_param = request.args.get("role", "admin").strip().lower()
 
     if user_id_param is not None:
-        # Direct user ID selection — highest priority.
+        # Direct user ID selection -- highest priority.
         target_user = User.query.filter(
             User.id == user_id_param,
             User.is_active == True,  # pylint: disable=singleton-comparison
@@ -171,7 +184,7 @@ def dev_login():
             )
             return redirect(url_for("auth.dev_login_picker"))
     else:
-        # Role-based selection — find the first active user with this role.
+        # Role-based selection -- find the first active user with this role.
         target_user = (
             User.query.join(User.role)
             .filter(
