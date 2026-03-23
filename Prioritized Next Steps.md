@@ -15,7 +15,7 @@ LOE: 1.5 to 2 hours. LOR: 3. The strategy lists 9 tests. Audit logging is exerci
 LOE: 1 to 1.5 hours. LOR: 2. The strategy lists 10 isolated decorator tests. This is substantially mitigated by test_scope_isolation.py, which tests the decorators at the route integration level. The incremental value is catching decorator-internal edge cases (like a decorator returning 500 instead of 403 on an unexpected input). If time is tight, this can be deferred.
 * [X] ~~*Rank 7: Write tests/test_routes/test_auth_routes.py*~~ [2026-03-23]
 LOE: 2 hours. LOR: 2. The strategy lists 9 tests. Login/logout failures during a demo are embarrassing but unlikely if dev-login is used. The highest-value subset is test_dev_login_works_in_testing_mode and test_logout_clears_session, which you could write in 30 minutes as a stopgap.
-* [ ] Rank 8: Write tests/test_services/test_export_service.py
+* [X] ~~*Rank 8: Write tests/test_services/test_export_service.py*~~ [2026-03-23]
 LOE: 1.5 hours. LOR: 2. The strategy lists 6 tests. If you write test_reports_routes.py (Rank 2), you get route-level export coverage. These service-level tests add column/value verification on the actual CSV/Excel output, which is useful but lower marginal value.
 * [ ] Rank 9: Write tests/test_routes/test_error_handlers.py
 LOE: 30 minutes. LOR: 1. Three tests: hit a nonexistent URL and assert a custom 404 page, trigger a 403 and assert the custom page, and (if possible) trigger a 500 and assert the custom page. Quick win, low risk reduction.
