@@ -19,6 +19,18 @@ to what already exists.
 5. tests/test_services/test_audit_service.py written (2026-03-23)
 6. tests/test_decorators/test_role_required.py written (2026-03-23)
 7. tests/test_routes/test_auth_routes.py written (2026-03-23)
+8. tests/test_services/test_export_service.py written (2026-03-23)
+9. tests/test_routes/test_error_handlers.py written. The strategy baseline
+   called for 3 tests. The actual file contains 12 test classes covering
+   404/403/500 for authenticated and unauthenticated users, multiple role
+   denials, POST method denial, various exception types, custom template
+   content, CSS class structure, button styling, icon presence, page title
+   verification, response body size, traceback/config leak prevention, and
+   db.session.rollback() verification on 500. Uses a
+   disable_exception_propagation fixture to work around Flask's
+   PROPAGATE_EXCEPTIONS=True in testing mode. Additional error handler
+   coverage exists in test_main_routes.py (TestErrorHandlers class) and
+   test_role_required.py (TestRoleRequiredResponseBehavior class).
 
 ---
 
@@ -57,96 +69,6 @@ Each item below is a discrete task. Priority is ordered by a combination of
 coverage gap size, CIO demo risk, and production readiness impact. Level of
 effort (LOE) is in hours. Level of reward (LOR) rates risk reduction on a
 1 to 5 scale where 5 means "prevents a visible CIO demo failure."
-
----
-
-### Rank 8: Write tests/test_services/test_export_service.py
-
-**LOE:** 1.5 hours | **LOR:** 2 | **Priority tier:** P2
-**Strategy reference:** Section 6.5 (6 tests planned)
-**Current coverage:** export_service.py is at 100% from route-level tests
-
-The route-level tests in test_reports_routes.py already exercise every
-export_service function and achieve 100% line coverage. However, the
-route tests only verify HTTP-level behavior (status codes, content types,
-that a file response is returned). They do not verify the internal
-correctness of the exported data.
-
-**What the service-level tests must verify beyond the route tests:**
-
-- `test_export_department_costs_csv_correct_columns`: Parse the CSV output
-  with the csv module. Assert the header row contains exactly the expected
-  column names in the correct order. This catches column renames or
-  reorderings that the route test would miss because it only checks
-  content_type.
-- `test_export_department_costs_csv_correct_values`: Create known cost
-  data via fixtures (e.g., Department A with $1,200 hardware, $400
-  software). Parse the CSV rows and assert the values match the expected
-  totals to the penny. Use `Decimal` comparisons with `ROUND_HALF_UP` to
-  match the application's rounding behavior. This is the test that
-  catches a broken cost aggregation before the CIO sees wrong numbers in
-  a spreadsheet.
-- `test_export_department_costs_excel_creates_valid_file`: Write the
-  output to `io.BytesIO`, open it with openpyxl, and assert the workbook
-  has the expected sheet name, header row, and at least one data row.
-  This catches silent openpyxl failures that produce corrupt files.
-- `test_export_position_costs_csv_correct_columns`: Same column
-  verification for the position-level export, which has a different
-  schema than the department export.
-- `test_export_position_costs_excel_creates_valid_file`: Same openpyxl
-  validation for the position Excel export.
-- `test_export_empty_data_produces_headers_only`: Call the export
-  functions with no cost data. Assert the CSV contains only the header
-  row and the Excel file has only the header row. This catches
-  NoneType errors on empty result sets.
-
-**Enhancement beyond the strategy baseline:**
-
-- Add `test_export_department_costs_csv_scope_filtering`: Call the export
-  function with a manager-scoped user's department list. Assert the CSV
-  contains only rows for departments within that scope. This closes the
-  gap between "export works" and "export respects authorization."
-- Add `test_export_decimal_precision_matches_ui`: Create a position with
-  costs that produce repeating decimals (e.g., $100 / 3 authorized). Assert
-  the CSV value matches the UI display value to confirm the rounding is
-  consistent between the export path and the report page path.
-
----
-
-### Rank 9: Write tests/test_routes/test_error_handlers.py
-
-**LOE:** 30 minutes | **LOR:** 1 | **Priority tier:** P2
-**Strategy reference:** Section 6.6 (3 tests planned)
-**Current coverage:** Error handler functions in **init**.py are at 100%
-
-The error handlers are already exercised indirectly by other tests (any
-403 response from role_required triggers the 403 handler, for example).
-These tests make the coverage explicit and verify the user-facing content.
-
-**What each test must verify:**
-
-- `test_404_returns_custom_error_page`: GET a URL that does not exist
-  (e.g., `/this-page-does-not-exist`). Assert status_code == 404. Assert
-  the response body contains a user-friendly message (not a raw Werkzeug
-  stack trace). Assert the response is HTML.
-- `test_403_returns_custom_error_page`: Authenticate as a manager and
-  GET `/admin/users`. Assert status_code == 403. Assert the response
-  body contains a user-friendly "forbidden" or "not authorized" message.
-  Assert the response is HTML.
-- `test_500_returns_custom_error_page`: This is harder to trigger cleanly.
-  Use `unittest.mock.patch` to make a route handler raise an unhandled
-  exception (e.g., patch `app.blueprints.main.routes.dashboard` to raise
-  `RuntimeError`). Assert status_code == 500. Assert the response body
-  contains a user-friendly error message.
-
-**Enhancement beyond the strategy baseline:**
-
-- Add `test_404_does_not_leak_stack_trace`: Assert that the 404 response
-  body does NOT contain "Traceback" or "File" strings, proving that
-  debug mode is not leaking internal paths.
-- Add `test_403_preserves_login_session`: After receiving a 403, make
-  a subsequent request to a permitted route and assert the user is still
-  logged in. This verifies the error handler does not corrupt the session.
 
 ---
 
@@ -612,30 +534,28 @@ If working sequentially, this is the recommended order:
 | Order | Task | LOE | Cumulative Tests Added |
 |-------|------|-----|------------------------|
 | 1 | Rank 10: test_equipment_routes.py | 4-5 hrs | ~25 new tests |
-| 2 | Rank 13: Branch gap cleanup | 2-3 hrs | ~10 new tests |
-| 3 | Rank 8: test_export_service.py | 1.5 hrs | ~8 new tests |
-| 4 | Rank 9: test_error_handlers.py | 0.5 hrs | ~5 new tests |
-| 5 | Rank 11: test_organization_routes.py | 2-3 hrs | ~10 new tests |
-| 6 | Rank 12: test_auth_service.py | 2 hrs | ~10 new tests |
-| 7 | Rank 18: Coverage report | 0.5 hrs | -- |
-| 8 | Rank 14: test_hr_sync_service.py | 3-4 hrs | ~10 new tests |
-| 9 | Rank 15: Model tests | 2 hrs | ~11 new tests |
-| 10 | Rank 16: App factory tests | 1.5 hrs | ~6 new tests |
-| 11 | Rank 17: CLI tests | 1.5 hrs | ~3 new tests |
+| 2 | Rank 11: test_organization_routes.py | 2-3 hrs | ~10 new tests |
+| 3 | Rank 12: test_auth_service.py | 2 hrs | ~10 new tests |
+| 4 | Rank 13: Branch gap cleanup | 2-3 hrs | ~10 new tests |
+| 5 | Rank 14: test_hr_sync_service.py | 3-4 hrs | ~10 new tests |
+| 6 | Rank 15: Model tests | 2 hrs | ~11 new tests |
+| 7 | Rank 16: App factory tests | 1.5 hrs | ~6 new tests |
+| 8 | Rank 17: CLI tests | 1.5 hrs | ~3 new tests |
+| 9 | Rank 18: Coverage report | 0.5 hrs | -- |
 
-Total estimated LOE: 21 to 27 hours
-Total new tests: ~98
+Total estimated LOE: 19 to 24 hours
+Total new tests: ~85
 
-After completing through order 7 (Ranks 10, 13, 8, 9, 11, 12, 18), the
-projected coverage should be approximately 70-75% overall with the
-equipment routes gap closed and all critical-path code verified. That is
-a strong position for CIO review.
+After completing through order 4 (Ranks 10 through 13), the projected
+coverage should be approximately 70-75% overall with the equipment routes
+gap closed and all critical-path code verified. That is a strong position
+for CIO review.
 
 ---
 
 ## What to Tell the CIO (Updated)
 
-After completing the above work through at least order 7, you can say:
+After completing the above work through at least order 4, you can say:
 
 1. "We have 200+ automated tests covering authorization, cost calculations,
    the core workflow, admin operations, reporting, equipment catalog
