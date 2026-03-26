@@ -13,4 +13,6 @@ pytest tests/test_routes/test_admin_branch_gaps.py -v --tb=long 2>&1 | Out-File 
 
 pytest tests/test_models/test_organization_model.py -v --tb=long 2>&1 | Out-File -FilePath test_output.txt
 
-pytest tests/test_config/test_app_factory.py -v --tb=long 2>&1 | Out-File -FilePath test_output.txt
+pytest tests/test_routes/test_admin_routes.py -v --tb=long 2>&1 | Out-File -FilePath test_output.txt
+
+pytest  -v --tb=long 2>&1 | Out-File -FilePath test_output.txt
